@@ -1,10 +1,18 @@
 #pragma once
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include "../exchange/orderbook/ob_types.h"
 
 namespace jolt {
+    inline constexpr uint16_t kFirstSymbolId = 1;
+    inline constexpr size_t kNumSymbols = 4;
+    inline constexpr uint16_t kLastSymbolId = static_cast<uint16_t>(kFirstSymbolId + kNumSymbols - 1);
+
+    inline constexpr bool is_valid_symbol_id(const uint64_t symbol_id) {
+        return symbol_id >= kFirstSymbolId && symbol_id <= kLastSymbolId;
+    }
 
     using Side = ob::Side;
 

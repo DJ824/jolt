@@ -64,11 +64,13 @@ class SnapshotBlobPool {
 public:
     SnapshotBlobPool(const std::string& name, BlobMode mode)
         : name_(shared_blob_detail::normalize_shm_name(name)) {
-        int oflag = (mode == BlobMode::Create) ? (O_CREAT | O_EXCL | O_RDWR) : O_RDWR;
+        int oflag = (mode == BlobMode::Create) ? (O_CREAT | O_RDWR) : O_RDWR;
+
         fd_ = ::shm_open(name_.c_str(), oflag, 0600);
         if (fd_ < 0) {
             throw std::runtime_error("shm_open failed");
         }
+
         owner_ = (mode == BlobMode::Create);
 
         size_t nbytes = bytes_needed();
@@ -80,6 +82,7 @@ public:
         if (map_ == MAP_FAILED) {
             throw std::runtime_error("mmap failed");
         }
+
         hdr_ = reinterpret_cast<Header*>(map_);
         auto off = align_up(sizeof(Header), alignof(Storage));
         slots_ = reinterpret_cast<Storage*>(static_cast<std::byte*>(map_) + off);

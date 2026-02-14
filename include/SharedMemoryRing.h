@@ -81,7 +81,7 @@ public:
     SharedSpscQueue(const std::string& name, SharedRingMode mode, const SharedRingOptions& opt = {})
         : name_(shared_ring_detail::normalize_shm_name(name)), options_(opt) {
             const size_t bytes = bytes_needed();
-            const int oflag = (mode == SharedRingMode::Create) ? (O_CREAT | O_EXCL | O_RDWR) : O_RDWR;
+            const int oflag = (mode == SharedRingMode::Create) ? (O_CREAT | O_RDWR) : O_RDWR;
             fd_ = ::shm_open(name_.c_str(), oflag, opt.permissions);
 
             if (fd_ == -1) {
@@ -89,7 +89,7 @@ public:
             }
 
             owner_ = (mode == SharedRingMode::Create);
-            if (owner_) {
+            if (mode == SharedRingMode::Create) {
                 if (::ftruncate(fd_, static_cast<off_t>(bytes)) != 0) {
                     ::close(fd_);
                     throw std::runtime_error("ftruncate failed");

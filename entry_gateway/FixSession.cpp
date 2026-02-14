@@ -4,12 +4,34 @@
 
 #include "FixSession.h"
 #include "FixGateway.h"
+#include "../include/async_logger.h"
 
 #include <stdexcept>
 #include <unistd.h>
 #include <sys/socket.h>
 
 namespace jolt::gateway {
+    namespace {
+        constexpr char kFixDelim = '\x01';
+
+        std::string_view find_fix_tag(std::string_view msg, std::string_view tag_with_eq) {
+            size_t pos = 0;
+            while (pos < msg.size()) {
+                const size_t end = msg.find(kFixDelim, pos);
+                const size_t field_end = (end == std::string_view::npos) ? msg.size() : end;
+                const std::string_view field = msg.substr(pos, field_end - pos);
+                if (field.size() > tag_with_eq.size() && field.substr(0, tag_with_eq.size()) == tag_with_eq) {
+                    return field.substr(tag_with_eq.size());
+                }
+                if (end == std::string_view::npos) {
+                    break;
+                }
+                pos = end + 1;
+            }
+            return {};
+        }
+    }
+
     FixSession::FixSession(const std::string& sender_comp_id, const std::string& target_comp_id, int fd) {
         sender_comp_id_ = sender_comp_id;
         target_comp_id_ = target_comp_id;
@@ -106,6 +128,18 @@ namespace jolt::gateway {
             }
 
             if (static_cast<size_t>(n) == remaining) {
+                const std::string_view msg_view(m.buf.data(), m.len);
+                const std::string_view msg_type = find_fix_tag(msg_view, "35=");
+                const std::string_view order_id = find_fix_tag(msg_view, "37=");
+                std::string_view client_id = find_fix_tag(msg_view, "1=");
+                if (client_id.empty()) {
+                    client_id = find_fix_tag(msg_view, "49=");
+                }
+                log_info("[gtwy] gateway sent msg to client msg_type=" +
+                         std::string(msg_type.empty() ? std::string_view{"?"} : msg_type) +
+                         " order_id=" + std::string(order_id.empty() ? std::string_view{"unknown"} : order_id) +
+                         " client_id=" + std::string(client_id.empty() ? std::string_view{"unknown"} : client_id) +
+                         " session=" + std::to_string(session_id_));
                 tx_buf_.pop_front();
                 tx_off_ = 0;
             } else {

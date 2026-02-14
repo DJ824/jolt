@@ -63,8 +63,8 @@ namespace jolt::gateway {
         void poll_io();
         std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
         void clear_session_for_client(uint64_t client_id);
-        LockFreeQueue<FixMessage, 8192> outbound_;
-        LockFreeQueue<FixMessage, 8192> inbound_;
+        LockFreeQueue<FixMessage, 1 << 10> outbound_;
+        LockFreeQueue<FixMessage, 1 << 10> inbound_;
         std::vector<SessionState> sessions_;
 
     };

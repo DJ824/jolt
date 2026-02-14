@@ -87,6 +87,21 @@ namespace jolt::client {
                                        uint64_t qty,
                                        uint64_t price,
                                        int tif = 1);
+        std::string_view build_replace_stop(std::string_view cl_ord_id,
+                                            std::string_view orig_cl_ord_id,
+                                            std::string_view symbol,
+                                            bool is_buy,
+                                            uint64_t qty,
+                                            uint64_t stop_px,
+                                            int tif = 1);
+        std::string_view build_replace_stop_limit(std::string_view cl_ord_id,
+                                                  std::string_view orig_cl_ord_id,
+                                                  std::string_view symbol,
+                                                  bool is_buy,
+                                                  uint64_t qty,
+                                                  uint64_t stop_px,
+                                                  uint64_t limit_px,
+                                                  int tif = 1);
         bool build_snapshot_request(const std::string& host,
                                     const std::string& port,
                                     uint64_t session_id,

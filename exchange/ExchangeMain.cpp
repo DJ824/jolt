@@ -29,8 +29,8 @@ int main() {
         req_q_owner = std::make_unique<jolt::exchange::Exchange::RequestQ>(kReqQ, SharedRingMode::Attach);
     }
 
-    constexpr jolt::ob::PriceTick kMinTick = 1;
-    constexpr jolt::ob::PriceTick kMaxTick = 1'000'000;
+    constexpr jolt::ob::PriceTick kMinTick = 20'000;
+    constexpr jolt::ob::PriceTick kMaxTick = 100'000;
 
     jolt::exchange::Exchange exchange(
         kMinTick,

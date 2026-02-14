@@ -4,6 +4,7 @@
 
 #include "FixClient.h"
 #include "market_data_gateway/MarketDataTypes.h"
+#include "../include/async_logger.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -18,6 +19,57 @@
 
 namespace {
     constexpr char kFixDelim = '\x01';
+
+    std::string_view find_fix_tag(std::string_view msg, std::string_view tag_with_eq) {
+        size_t pos = 0;
+        while (pos < msg.size()) {
+            const size_t end = msg.find(kFixDelim, pos);
+            const size_t field_end = (end == std::string_view::npos) ? msg.size() : end;
+            const std::string_view field = msg.substr(pos, field_end - pos);
+            if (field.size() > tag_with_eq.size() && field.substr(0, tag_with_eq.size()) == tag_with_eq) {
+                return field.substr(tag_with_eq.size());
+            }
+            if (end == std::string_view::npos) {
+                break;
+            }
+            pos = end + 1;
+        }
+        return {};
+    }
+
+    std::string fix_msg_type_for_log(std::string_view msg) {
+        const std::string_view msg_type = find_fix_tag(msg, "35=");
+        if (msg_type.empty()) {
+            return "?";
+        }
+        return std::string(msg_type);
+    }
+
+    std::string fix_order_id_for_log(std::string_view msg) {
+        const std::string_view order_id = find_fix_tag(msg, "37=");
+        if (order_id.empty()) {
+            return "unknown";
+        }
+        return std::string(order_id);
+    }
+
+    std::string fix_client_id_for_log(std::string_view msg,
+                                      std::string_view account,
+                                      std::string_view sender_comp_id) {
+        if (const std::string_view account_tag = find_fix_tag(msg, "1="); !account_tag.empty()) {
+            return std::string(account_tag);
+        }
+        if (const std::string_view sender_tag = find_fix_tag(msg, "49="); !sender_tag.empty()) {
+            return std::string(sender_tag);
+        }
+        if (!account.empty()) {
+            return std::string(account);
+        }
+        if (!sender_comp_id.empty()) {
+            return std::string(sender_comp_id);
+        }
+        return "unknown";
+    }
 
     bool send_all(int fd, const char* data, size_t len) {
         size_t off = 0;
@@ -351,6 +403,52 @@ namespace jolt::client {
         return build_fix_message("G", fields);
     }
 
+    std::string_view FixClient::build_replace_stop(std::string_view cl_ord_id,
+                                                   std::string_view orig_cl_ord_id,
+                                                   std::string_view symbol,
+                                                   bool is_buy,
+                                                   uint64_t qty,
+                                                   uint64_t stop_px,
+                                                   int tif) {
+        std::vector<std::pair<int, std::string>> fields;
+        fields.emplace_back(11, std::string(cl_ord_id));
+        fields.emplace_back(41, std::string(orig_cl_ord_id));
+        if (!account_.empty()) {
+            fields.emplace_back(1, account_);
+        }
+        fields.emplace_back(55, std::string(symbol));
+        fields.emplace_back(54, is_buy ? "1" : "2");
+        fields.emplace_back(38, std::to_string(qty));
+        fields.emplace_back(40, "3");
+        fields.emplace_back(99, std::to_string(stop_px));
+        fields.emplace_back(59, std::to_string(tif));
+        return build_fix_message("G", fields);
+    }
+
+    std::string_view FixClient::build_replace_stop_limit(std::string_view cl_ord_id,
+                                                         std::string_view orig_cl_ord_id,
+                                                         std::string_view symbol,
+                                                         bool is_buy,
+                                                         uint64_t qty,
+                                                         uint64_t stop_px,
+                                                         uint64_t limit_px,
+                                                         int tif) {
+        std::vector<std::pair<int, std::string>> fields;
+        fields.emplace_back(11, std::string(cl_ord_id));
+        fields.emplace_back(41, std::string(orig_cl_ord_id));
+        if (!account_.empty()) {
+            fields.emplace_back(1, account_);
+        }
+        fields.emplace_back(55, std::string(symbol));
+        fields.emplace_back(54, is_buy ? "1" : "2");
+        fields.emplace_back(38, std::to_string(qty));
+        fields.emplace_back(40, "4");
+        fields.emplace_back(99, std::to_string(stop_px));
+        fields.emplace_back(44, std::to_string(limit_px));
+        fields.emplace_back(59, std::to_string(tif));
+        return build_fix_message("G", fields);
+    }
+
     bool FixClient::build_snapshot_request(const std::string& host,
                                            const std::string& port,
                                            const uint64_t session_id,
@@ -377,10 +475,16 @@ namespace jolt::client {
 
     bool FixClient::poll() {
         if (!read_socket()) {
+            log_error("[client] client poll failed while reading from gateway client_id=" +
+                      fix_client_id_for_log({}, account_, sender_comp_id_));
             return false;
         }
         std::string msg;
         while (extract_message(msg)) {
+            const std::string msg_type = fix_msg_type_for_log(msg);
+            log_info("[client] client received response from gateway msg_type=" + msg_type +
+                     " order_id=" + fix_order_id_for_log(msg) +
+                     " client_id=" + fix_client_id_for_log(msg, account_, sender_comp_id_));
             inbound_.push_back(std::move(msg));
         }
         return true;
@@ -397,6 +501,8 @@ namespace jolt::client {
 
     bool FixClient::read_socket() {
         if (fd_ == -1) {
+            log_error("[client] client read failed: socket is not connected client_id=" +
+                      fix_client_id_for_log({}, account_, sender_comp_id_));
             return false;
         }
 
@@ -407,6 +513,13 @@ namespace jolt::client {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return true;
             }
+            log_error("[client] client recv failed from gateway client_id=" +
+                      fix_client_id_for_log({}, account_, sender_comp_id_));
+            return false;
+        }
+        if (n == 0) {
+            log_warn("[client] client socket closed by gateway client_id=" +
+                     fix_client_id_for_log({}, account_, sender_comp_id_));
             return false;
         }
 
@@ -424,6 +537,8 @@ namespace jolt::client {
         size_t start = view.find("8=");
 
         if (start == std::string::npos) {
+            log_warn("[client] client dropped non-FIX payload while parsing gateway response client_id=" +
+                     fix_client_id_for_log({}, account_, sender_comp_id_));
             recv_off_ = recv_len_ = 0;
             return false;
         }
@@ -438,13 +553,15 @@ namespace jolt::client {
         size_t body_len_end = view.find('\x01', body_len_pos);
 
         if (body_len_pos == std::string::npos || body_len_end == std::string::npos) {
-            recv_off_ = recv_len_ = 0;
+            // Partial frame, wait for more bytes.
             return false;
         }
 
         size_t body_len = 0;
         auto [ptr, ec] = std::from_chars(view.data() + body_len_pos + 2, view.data() + body_len_end, body_len);
         if (ec != std::errc{}) {
+            log_error("[client] client failed parsing BodyLength from gateway response client_id=" +
+                      fix_client_id_for_log({}, account_, sender_comp_id_));
             recv_off_ = recv_len_ = 0;
             return false;
         }
@@ -456,6 +573,8 @@ namespace jolt::client {
         }
 
         if (view.compare(body_end, 3, "10=") != 0) {
+            log_warn("[client] client FIX frame missing checksum trailer, resyncing client_id=" +
+                     fix_client_id_for_log({}, account_, sender_comp_id_));
             recv_off_ += body_end;
             return false;
         }

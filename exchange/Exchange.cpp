@@ -1,11 +1,47 @@
 
 #include "Exchange.h"
+#include "../include/async_logger.h"
 
 #include <cstring>
+#include <limits>
 #include <vector>
 #include <xmmintrin.h>
 
 namespace jolt::exchange {
+    namespace {
+        bool symbol_id_to_index(const uint64_t symbol_id, size_t& out_idx) {
+            if (!jolt::is_valid_symbol_id(symbol_id)) {
+                return false;
+            }
+            out_idx = static_cast<size_t>(symbol_id - jolt::kFirstSymbolId);
+            return true;
+        }
+
+        const char* order_action_text(ob::OrderAction action) {
+            switch (action) {
+            case ob::OrderAction::New:
+                return "New";
+            case ob::OrderAction::Modify:
+                return "Modify";
+            case ob::OrderAction::Cancel:
+                return "Cancel";
+            }
+            return "Unknown";
+        }
+
+        const char* exchange_msg_type_text(ExchToGtwyMsg::Type type) {
+            switch (type) {
+            case ExchToGtwyMsg::Type::Submitted:
+                return "Submitted";
+            case ExchToGtwyMsg::Type::Rejected:
+                return "Rejected";
+            case ExchToGtwyMsg::Type::Filled:
+                return "Filled";
+            }
+            return "Unknown";
+        }
+    }
+
     Exchange::Exchange(ob::PriceTick min_tick,
                      ob::PriceTick max_tick,
                      const std::string& inbound_name,
@@ -68,6 +104,11 @@ namespace jolt::exchange {
         }
 
         while (auto msg = gtwy_exch.dequeue()) {
+            log_info("[exch] exchange received order from gateway order_id=" +
+                     std::to_string(msg->order.id) +
+                     " client_id=" + std::to_string(msg->order.client_id) +
+                     " action=" + std::string(order_action_text(msg->order.action)) +
+                     " symbol_id=" + std::to_string(msg->order.symbol_id));
             handle_order(msg->order);
             did_work = true;
         }
@@ -94,21 +135,34 @@ namespace jolt::exchange {
     }
 
     void Exchange::handle_order(const ob::OrderParams& order) {
-
-        auto& book = *orderbooks_[0];
+        const uint16_t symbol_id = order.symbol_id;
+        size_t symbol_idx = 0;
+        if (!symbol_id_to_index(symbol_id, symbol_idx)) {
+            log_error("[exch] exchange received invalid symbol_id from gateway symbol_id=" +
+                      std::to_string(symbol_id) + " order_id=" + std::to_string(order.id) +
+                      " client_id=" + std::to_string(order.client_id));
+            ExchToGtwyMsg rej{};
+            rej.type = ExchToGtwyMsg::Type::Rejected;
+            rej.client_id = order.client_id;
+            rej.order_id = order.id;
+            rej.reason = ob::RejectReason::InvalidPrice;
+            publish_exchange_msg(rej);
+            return;
+        }
+        auto& book = *orderbooks_[symbol_idx];
         ob::BookEvent event = book.submit_order(order);
         auto seq = book.seq;
 
         event.seq = seq;
-        if (orderbook_seqs_[0] == 0) {
-            orderbook_seqs_[0] = seq;
+        if (orderbook_seqs_[symbol_idx] == 0) {
+            orderbook_seqs_[symbol_idx] = seq;
         }
 
-        if (seq - orderbook_seqs_[0] >= 5'000) {
+        if (seq - orderbook_seqs_[symbol_idx] >= 5'000) {
             auto& snapshot = snapshots_[snapshot_head_];
             book.get_snapshot(snapshot);
             snapshot_head_ = (snapshot_head_ + 1) % 4;
-            orderbook_seqs_[0] = seq;
+            orderbook_seqs_[symbol_idx] = seq;
         }
 
         if (event.event_type == ob::BookEventType::Reject) {
@@ -146,11 +200,13 @@ namespace jolt::exchange {
                 data.price = fill_event.price;
                 data.event_type = fill_event.event_type;
                 data.seq = fill_event.seq;
+                data.symbol_id = symbol_id;
                 data.side = fill_event.side;
                 publish_book_event(data);
 
                 ExchToGtwyMsg out{};
                 out.filled = true;
+                out.order_id = fill_event.id;
                 out.fill_qty = fill_event.qty;
                 out.type = ExchToGtwyMsg::Type::Filled;
                 publish_exchange_msg(out);
@@ -173,12 +229,13 @@ namespace jolt::exchange {
         data.side = event.side;
         data.price = event.price;
         data.event_type = event.event_type;
+        data.symbol_id = symbol_id;
         publish_book_event(data);
 
-        mkt_data_[0].push_back(data);
-        if (mkt_data_[0].size() >= 1 << 10) {
-            writer_.write_batch(0, mkt_data_[0].data(), mkt_data_[0].size());
-            mkt_data_[0].clear();
+        mkt_data_[symbol_idx].push_back(data);
+        if (mkt_data_[symbol_idx].size() >= 1 << 10) {
+            writer_.write_batch(symbol_id, mkt_data_[symbol_idx].data(), mkt_data_[symbol_idx].size());
+            mkt_data_[symbol_idx].clear();
         }
     }
 
@@ -187,7 +244,17 @@ namespace jolt::exchange {
     }
 
     void Exchange::publish_exchange_msg(const ExchToGtwyMsg& msg) {
-        (void)exch_gtwy.enqueue(msg);
+        if (!exch_gtwy.enqueue(msg)) {
+            log_error("[exch] exchange->gateway enqueue failed type=" +
+                      std::string(exchange_msg_type_text(msg.type)) +
+                      " order_id=" + std::to_string(msg.order_id) +
+                      " client_id=" + std::to_string(msg.client_id));
+            return;
+        }
+        log_info("[exch] exchange responded to gateway type=" +
+                 std::string(exchange_msg_type_text(msg.type)) +
+                 " order_id=" + std::to_string(msg.order_id) +
+                 " client_id=" + std::to_string(msg.client_id));
     }
 
     void Exchange::publish_book_event(const ob::L3Data& data) {
@@ -195,7 +262,21 @@ namespace jolt::exchange {
     }
 
     void Exchange::handle_snapshot_request(uint64_t symbol_id, uint64_t request_seq, uint64_t request_id, uint64_t session_id)  {
-        auto& book = orderbooks_[symbol_id];
+        (void)request_seq;
+        size_t symbol_idx = 0;
+        if (!symbol_id_to_index(symbol_id, symbol_idx)) {
+            md::SnapshotMeta meta{};
+            meta.accepted = false;
+            meta.request_id = request_id;
+            meta.session_id = session_id;
+            if (symbol_id <= std::numeric_limits<uint16_t>::max()) {
+                meta.symbol_id = static_cast<uint16_t>(symbol_id);
+            }
+            snapshot_meta.enqueue(meta);
+            return;
+        }
+
+        auto& book = orderbooks_[symbol_idx];
         ob::BookSnapshot snapshot{};
         book->get_snapshot(snapshot);
         md::SnapshotMeta meta{};
@@ -205,7 +286,7 @@ namespace jolt::exchange {
         meta.snapshot_seq = snapshot.seq;
         meta.bytes = (snapshot.ask_ct + snapshot.bid_ct) * sizeof(ob::SnapshotOrder);
         meta.request_id = request_id;
-        meta.symbol_id = symbol_id;
+        meta.symbol_id = static_cast<uint16_t>(symbol_id);
         meta.session_id = session_id;
         size_t idx = UINT16_MAX;
         snapshot_pool_.try_acquire(idx);
@@ -219,7 +300,7 @@ namespace jolt::exchange {
         std::memcpy(slot.payload.data(), snapshot.orders.data(), meta.bytes);
         snapshot_pool_.publish_ready(idx);
         meta.slot_id = idx;
-        meta.symbol_id = symbol_id;
+        meta.symbol_id = static_cast<uint16_t>(symbol_id);
         snapshot_meta.enqueue(meta);
     }
 

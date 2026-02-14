@@ -354,7 +354,7 @@ namespace jolt::ob {
                 true
             );
 
-            if (match_result.filled == 0) {
+            if (match_result.fill_count == 0) {
                 return make_reject(p.id, RejectReason::NotFillable, p.ts);
             }
 
@@ -384,7 +384,7 @@ namespace jolt::ob {
                 tp.ts = p.ts;
                 submit_take_profit(tp);
             }
-            return make_fill(p.id, p.side, match_result.last_px, match_result.filled, p.ts);
+            return make_fill(p.id, p.side, match_result.last_px, match_result.qty, p.ts);
         }
 
         BookEvent cancel(const OrderParams& p) {
@@ -633,8 +633,8 @@ namespace jolt::ob {
                 // match orders if the new price crosses the book
                 if (crosses(loc.side, new_px)) {
                     match_aggressive(id, loc.side, new_px, remaining, ts, true);
-                    if (remaining > match_result.filled) {
-                        remaining -= match_result.filled;
+                    if (remaining > match_result.qty) {
+                        remaining -= match_result.qty;
                     }
                     else {
                         remaining = 0;
@@ -797,7 +797,7 @@ namespace jolt::ob {
                 lvl->active_qty -= exec_qty;
                 filled_total += exec_qty;
                 last_px_exec = best_px;
-                ++match_result.filled;
+                ++match_result.fill_count;
                 match_result.qty += exec_qty;
 
                 BookEvent e{};

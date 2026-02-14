@@ -18,7 +18,7 @@
 class L3DataWriter {
     static constexpr size_t kDepth = 64;
     static constexpr size_t kMaxRecordsPerBatch = 1 << 20;
-    static constexpr size_t kNumSymbols = 4;
+    static constexpr size_t kNumSymbols = jolt::kNumSymbols;
 
     std::string root_;
     std::string day_;
@@ -74,9 +74,10 @@ class L3DataWriter {
     }
 
     void ensure_open(uint16_t symbol_id) {
-        if (symbol_id >= symbol_fds_.size()) {
+        if (!jolt::is_valid_symbol_id(symbol_id)) {
             throw std::runtime_error("invalid symbol id");
         }
+        const size_t symbol_idx = static_cast<size_t>(symbol_id - jolt::kFirstSymbolId);
 
         const std::string day = today_yyyymmdd_utc();
         if (day != day_) {
@@ -84,7 +85,7 @@ class L3DataWriter {
             day_ = day;
         }
 
-        int& fd = symbol_fds_[symbol_id];
+        int& fd = symbol_fds_[symbol_idx];
         if (fd >= 0) {
             return;
         }
@@ -135,7 +136,7 @@ public:
         ring_ready_ = true;
 
         for (size_t i = 0; i < symbol_fds_.size(); ++i) {
-            ensure_open(static_cast<uint16_t>(i));
+            ensure_open(static_cast<uint16_t>(jolt::kFirstSymbolId + i));
         }
 
         for (auto& b : slot_bufs_) {
@@ -182,6 +183,7 @@ public:
         }
 
         ensure_open(symbol_id);
+        const size_t symbol_idx = static_cast<size_t>(symbol_id - jolt::kFirstSymbolId);
 
         reap_completions();
 
@@ -206,7 +208,7 @@ public:
         }
 
         io_uring_prep_write(sqe,
-                            symbol_fds_[symbol_id],
+                            symbol_fds_[symbol_idx],
                             buf.data(),
                             static_cast<unsigned>(bytes),
                             static_cast<__u64>(-1));

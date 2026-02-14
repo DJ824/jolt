@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <netinet/in.h>
 
 #include "MarketDataTypes.h"
@@ -43,7 +44,7 @@ namespace jolt::md {
         int fd_{-1};
         std::array<char, kMaxDatagram> buf_{};
         std::unordered_map<uint16_t, sockaddr_in> channels_{};
-        std::array<std::vector<ob::L3Data> , 4> symbol_buffers_;
+        std::array<std::vector<ob::L3Data>, jolt::kNumSymbols> symbol_buffers_{};
         MktDataQ mkt_data_q_;
 
     public:

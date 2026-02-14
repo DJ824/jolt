@@ -25,6 +25,7 @@ namespace jolt::ob {
         OrderAction action{OrderAction::New};
         OrderType type{OrderType::Limit};
         OrderId id{};
+        uint16_t symbol_id{0};
         uint64_t client_id;
         OrderId tp_id{0};
         OrderId sl_id{0};
@@ -76,12 +77,12 @@ namespace jolt::ob {
 
     struct MatchResult {
         std::vector<BookEvent> fills{1024};
-        uint64_t filled{0};
+        uint64_t fill_count{0};
         Qty qty{0};
         PriceTick last_px{0};
 
         void reset() {
-            filled = 0;
+            fill_count = 0;
             last_px = 0;
             qty = 0;
             fills.clear();

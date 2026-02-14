@@ -22,6 +22,14 @@ namespace jolt::md {
         return dst;
     }
 
+    bool symbol_id_to_index(const uint16_t symbol_id, size_t& out_idx) {
+        if (!jolt::is_valid_symbol_id(symbol_id)) {
+            return false;
+        }
+        out_idx = static_cast<size_t>(symbol_id - jolt::kFirstSymbolId);
+        return true;
+    }
+
     UdpSever::UdpSever(const std::string& queue_name) : mkt_data_q_(queue_name, SharedRingMode::Attach) {
         fd_ = ::socket(AF_INET, SOCK_DGRAM, 0);
         if (fd_ < 0) {
@@ -64,7 +72,9 @@ namespace jolt::md {
                                               const uint16_t base_port) {
         channels_.clear();
         for (size_t i = 0; i < num_symbols; ++i) {
-            add_symbol_channel(static_cast<uint16_t>(i), multicast_ip, static_cast<uint16_t>(base_port + i));
+            add_symbol_channel(static_cast<uint16_t>(jolt::kFirstSymbolId + i),
+                               multicast_ip,
+                               static_cast<uint16_t>(base_port + i));
         }
     }
 
@@ -114,11 +124,15 @@ namespace jolt::md {
         for (;;) {
             auto msg = mkt_data_q_.dequeue();
             if (msg) {
-                auto symbol = msg->symbol_id;
-                auto& buf = symbol_buffers_[symbol];
+                const uint16_t symbol_id = msg->symbol_id;
+                size_t symbol_idx = 0;
+                if (!symbol_id_to_index(symbol_id, symbol_idx)) {
+                    continue;
+                }
+                auto& buf = symbol_buffers_[symbol_idx];
                 buf.push_back(*msg);
                 if (buf.size() == BUFFER_SIZE) {
-                    send_batch(symbol, buf.data(), buf.size());
+                    send_batch(symbol_id, buf.data(), buf.size());
                     buf.clear();
                 }
             }
