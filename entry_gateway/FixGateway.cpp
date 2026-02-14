@@ -566,39 +566,39 @@ namespace jolt::gateway {
                 return false;
             }
         }
-        if (!append_field(body, 37, static_cast<uint64_t>(state.params.id))) {
+        if (!append_field(body, 37, state.params.id)) {
             return false;
         }
-        if (!append_field(body, 17, static_cast<uint64_t>(exec_id))) {
+        if (!append_field(body, 17, exec_id)) {
             return false;
         }
         if (!append_field(body, 54, state.params.side == ob::Side::Buy ? "1" : "2")) {
             return false;
         }
-        if (!append_field(body, 38, static_cast<uint64_t>(state.params.qty))) {
+        if (!append_field(body, 38, state.params.qty)) {
             return false;
         }
         if (!append_field(body, 40, fix_ord_type(state.params.type))) {
             return false;
         }
         if (state.params.type == ob::OrderType::Limit) {
-            if (!append_field(body, 44, static_cast<uint64_t>(state.params.price))) {
+            if (!append_field(body, 44, (state.params.price))) {
                 return false;
             }
         }
         else if (state.params.type == ob::OrderType::StopLimit) {
-            if (!append_field(body, 44, static_cast<uint64_t>(state.params.limit_px))) {
+            if (!append_field(body, 44, (state.params.limit_px))) {
                 return false;
             }
             if (state.params.trigger != 0) {
-                if (!append_field(body, 99, static_cast<uint64_t>(state.params.trigger))) {
+                if (!append_field(body, 99, (state.params.trigger))) {
                     return false;
                 }
             }
         }
         else if (state.params.type == ob::OrderType::StopMarket) {
             if (state.params.trigger != 0) {
-                if (!append_field(body, 99, static_cast<uint64_t>(state.params.trigger))) {
+                if (!append_field(body, 99, (state.params.trigger))) {
                     return false;
                 }
             }
@@ -624,7 +624,7 @@ namespace jolt::gateway {
         if (!append_field(msg, 8, "FIX.4.4")) {
             return false;
         }
-        if (!append_field(msg, 9, static_cast<uint64_t>(body.len))) {
+        if (!append_field(msg, 9, (body.len))) {
             return false;
         }
         if (!append_bytes(msg, std::string_view(body_msg.data.data(), body.len))) {
@@ -670,7 +670,7 @@ namespace jolt::gateway {
         if (!append_field(body, 98, "0")) {
             return false;
         }
-        if (!append_field(body, 108, static_cast<uint64_t>(heartbeat_int))) {
+        if (!append_field(body, 108, (heartbeat_int))) {
             return false;
         }
         if (reset_seq) {
@@ -683,7 +683,7 @@ namespace jolt::gateway {
         if (!append_field(msg, 8, "FIX.4.4")) {
             return false;
         }
-        if (!append_field(msg, 9, static_cast<uint64_t>(body.len))) {
+        if (!append_field(msg, 9, (body.len))) {
             return false;
         }
         if (!append_bytes(msg, std::string_view(body_msg.data.data(), body.len))) {
@@ -748,6 +748,7 @@ namespace jolt::gateway {
         }
 
         auto client_it = clients_.find(client_id);
+
         if (client_it == clients_.end()) {
             auto client = std::make_unique<Client>(client_id);
             client->set_gateway(this);
@@ -862,6 +863,7 @@ namespace jolt::gateway {
         }
 
         state->cl_ord_id = std::string(cl_ord_id);
+
         if (!orig_cl_ord_id.empty()) {
             state->orig_cl_ord_id = std::string(orig_cl_ord_id);
         }
@@ -1049,8 +1051,6 @@ namespace jolt::gateway {
         }
         else if (state->params.action == ob::OrderAction::Modify) {
             state->state = State::PendingReplace;
-            // After a replace request, the new ClOrdID becomes a valid reference for later
-            // cancel/replace requests. Keep both old and new keys mapped to the same state.
             order_states_[std::string(cl_ord_id)] = state;
         }
         else {

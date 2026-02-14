@@ -33,8 +33,6 @@ namespace jolt::gateway {
         void handle_exchange_msg(const ExchToGtwyMsg& msg);
         void queue_fix_message(const FixMessage& msg);
         SessionState* get_or_create_session(uint64_t session_id);
-        void record_client_received(uint64_t client_id);
-        void maybe_log_client_traffic();
 
         static bool build_exec_report(FixMessage& out,
                                       SessionState* session,
