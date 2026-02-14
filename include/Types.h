@@ -82,8 +82,6 @@ namespace jolt {
         std::array<std::byte,4096> chunk;
     };
 
-
-
     struct L3DiskRecord {
         uint64_t seq;
         uint64_t ts;

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <charconv>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
@@ -19,6 +20,41 @@
 
 namespace {
     constexpr char kFixDelim = '\x01';
+    constexpr size_t kDroppedPayloadPreviewBytes = 256;
+
+    std::string payload_preview_for_log(std::string_view payload) {
+        if (payload.empty()) {
+            return "<empty>";
+        }
+
+        const size_t preview_len = std::min(payload.size(), kDroppedPayloadPreviewBytes);
+        std::string out;
+        out.reserve(preview_len * 4 + 32);
+
+        constexpr char kHexDigits[] = "0123456789ABCDEF";
+        for (size_t i = 0; i < preview_len; ++i) {
+            const unsigned char ch = static_cast<unsigned char>(payload[i]);
+            if (ch == static_cast<unsigned char>(kFixDelim)) {
+                out += "|";
+                continue;
+            }
+            if (std::isprint(ch) && ch != '\\') {
+                out.push_back(static_cast<char>(ch));
+                continue;
+            }
+
+            out += "\\x";
+            out.push_back(kHexDigits[ch >> 4]);
+            out.push_back(kHexDigits[ch & 0x0F]);
+        }
+
+        if (preview_len < payload.size()) {
+            out += "...(truncated,total_bytes=";
+            out += std::to_string(payload.size());
+            out += ")";
+        }
+        return out;
+    }
 
     std::string_view find_fix_tag(std::string_view msg, std::string_view tag_with_eq) {
         size_t pos = 0;
@@ -51,6 +87,22 @@ namespace {
             return "unknown";
         }
         return std::string(order_id);
+    }
+
+    std::string fix_cl_ord_id_for_log(std::string_view msg) {
+        const std::string_view cl_ord_id = find_fix_tag(msg, "11=");
+        if (cl_ord_id.empty()) {
+            return "unknown";
+        }
+        return std::string(cl_ord_id);
+    }
+
+    std::string fix_orig_cl_ord_id_for_log(std::string_view msg) {
+        const std::string_view orig_cl_ord_id = find_fix_tag(msg, "41=");
+        if (orig_cl_ord_id.empty()) {
+            return "-";
+        }
+        return std::string(orig_cl_ord_id);
     }
 
     std::string fix_client_id_for_log(std::string_view msg,
@@ -260,9 +312,31 @@ namespace jolt::client {
 
     bool FixClient::send_raw(std::string_view msg) {
         if (fd_ == -1) {
+            log_error("[client] client send failed: socket is not connected client_id=" +
+                      fix_client_id_for_log(msg, account_, sender_comp_id_) +
+                      " msg_type=" + fix_msg_type_for_log(msg) +
+                      " cl_ord_id=" + fix_cl_ord_id_for_log(msg) +
+                      " orig_cl_ord_id=" + fix_orig_cl_ord_id_for_log(msg));
             return false;
         }
-        return send_all(fd_, msg.data(), msg.size());
+        const bool ok = send_all(fd_, msg.data(), msg.size());
+        if (!ok) {
+            log_error("[client] client failed sending message to gateway client_id=" +
+                      fix_client_id_for_log(msg, account_, sender_comp_id_) +
+                      " msg_type=" + fix_msg_type_for_log(msg) +
+                      " cl_ord_id=" + fix_cl_ord_id_for_log(msg) +
+                      " orig_cl_ord_id=" + fix_orig_cl_ord_id_for_log(msg) +
+                      " bytes=" + std::to_string(msg.size()));
+            return false;
+        }
+
+        log_info("[client] client sent message to gateway client_id=" +
+                 fix_client_id_for_log(msg, account_, sender_comp_id_) +
+                 " msg_type=" + fix_msg_type_for_log(msg) +
+                 " cl_ord_id=" + fix_cl_ord_id_for_log(msg) +
+                 " orig_cl_ord_id=" + fix_orig_cl_ord_id_for_log(msg) +
+                 " bytes=" + std::to_string(msg.size()));
+        return true;
     }
 
 
@@ -506,7 +580,27 @@ namespace jolt::client {
             return false;
         }
 
-        size_t space = 1024 - recv_len_;
+        if (recv_off_ >= recv_len_) {
+            recv_off_ = recv_len_ = 0;
+        }
+
+        if (recv_len_ == recv_buf_.size() && recv_off_ > 0) {
+            const size_t remaining = recv_len_ - recv_off_;
+            std::memmove(recv_buf_.data(), recv_buf_.data() + recv_off_, remaining);
+            recv_len_ = remaining;
+            recv_off_ = 0;
+        }
+
+        if (recv_len_ == recv_buf_.size()) {
+            log_warn("[client] client receive buffer full while reading gateway response, dropping buffered bytes client_id=" +
+                     fix_client_id_for_log({}, account_, sender_comp_id_));
+            recv_off_ = recv_len_ = 0;
+        }
+
+        const size_t space = recv_buf_.size() - recv_len_;
+        if (space == 0) {
+            return true;
+        }
 
         ssize_t n = recv(fd_, recv_buf_.data() + recv_len_, space, MSG_DONTWAIT);
         if (n < 0) {
@@ -520,16 +614,18 @@ namespace jolt::client {
         if (n == 0) {
             log_warn("[client] client socket closed by gateway client_id=" +
                      fix_client_id_for_log({}, account_, sender_comp_id_));
+            disconnect();
             return false;
         }
 
-        recv_len_ += n;
+        recv_len_ += static_cast<size_t>(n);
         return true;
     }
 
     bool FixClient::extract_message(std::string& out) {
         out.clear();
-        if (recv_buf_.empty()) {
+        if (recv_off_ >= recv_len_) {
+            recv_off_ = recv_len_ = 0;
             return false;
         }
 
@@ -538,7 +634,8 @@ namespace jolt::client {
 
         if (start == std::string::npos) {
             log_warn("[client] client dropped non-FIX payload while parsing gateway response client_id=" +
-                     fix_client_id_for_log({}, account_, sender_comp_id_));
+                     fix_client_id_for_log({}, account_, sender_comp_id_) +
+                     " payload=\"" + payload_preview_for_log(view) + "\"");
             recv_off_ = recv_len_ = 0;
             return false;
         }
@@ -548,8 +645,7 @@ namespace jolt::client {
             view.remove_prefix(start);
         }
 
-
-        size_t body_len_pos = view.find("9=", start + 2);
+        size_t body_len_pos = view.find("9=", 2);
         size_t body_len_end = view.find('\x01', body_len_pos);
 
         if (body_len_pos == std::string::npos || body_len_end == std::string::npos) {

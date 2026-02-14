@@ -133,6 +133,9 @@ namespace jolt::gateway {
                 const std::string_view order_id = find_fix_tag(msg_view, "37=");
                 std::string_view client_id = find_fix_tag(msg_view, "1=");
                 if (client_id.empty()) {
+                    client_id = find_fix_tag(msg_view, "56=");
+                }
+                if (client_id.empty()) {
                     client_id = find_fix_tag(msg_view, "49=");
                 }
                 log_info("[gtwy] gateway sent msg to client msg_type=" +

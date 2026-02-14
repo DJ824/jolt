@@ -116,6 +116,8 @@ private:
     std::atomic<bool> running_{false};
 };
 
-inline void log_info(std::string_view msg) { AsyncLogger::instance().info(msg); }
+// Intentionally disabled for throughput investigations.
+// Keeping this as a macro avoids evaluating expensive log string construction.
+#define log_info(...) ((void)0)
 inline void log_warn(std::string_view msg) { AsyncLogger::instance().warn(msg); }
 inline void log_error(std::string_view msg) { AsyncLogger::instance().error(msg); }

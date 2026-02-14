@@ -22,7 +22,7 @@ namespace jolt::client {
         size_t msg_len_{0};
         bool append_bytes(const char* p, size_t n);
         bool append_tag(int tag, std::string_view val);
-        std::array<char, 1024> recv_buf_;
+        std::array<char, 64 * 1024> recv_buf_;
         size_t recv_len_{0};
         size_t recv_off_{0};
 

@@ -22,9 +22,9 @@ namespace jolt::exchange {
     static constexpr size_t NUM_SHARDS = 4;
     class Exchange {
     public:
-        using GtwyToExch = SharedSpscQueue<GtwyToExchMsg, 1 << 15>;
+        using GtwyToExch = SharedSpscQueue<GtwyToExchMsg, 1 << 20>;
         using MktDataQueue = SharedSpscQueue<ob::L3Data, 1 << 15>;
-        using ExchToGtwy = SharedSpscQueue<ExchToGtwyMsg, 1 << 15>;
+        using ExchToGtwy = SharedSpscQueue<ExchToGtwyMsg, 1 << 20>;
         using ExchToRisk = SharedSpscQueue<ExchangeToRiskMsg, 1 << 15>;
         using RiskToExch = SharedSpscQueue<RiskToExchMsg, 1 << 15>;
         using SnapshotMetaQ = SharedSpscQueue<md::SnapshotMeta, 1 << 8>;

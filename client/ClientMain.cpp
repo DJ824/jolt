@@ -29,13 +29,14 @@ namespace {
         std::string host{"127.0.0.1"};
         std::string port{"8080"};
         size_t clients{50};
-        uint64_t total_orders{500'000};
+        uint64_t total_orders{250'000};
         uint64_t orders_per_client_override{0};
         uint64_t qty{1};
         uint64_t base_price{60'000};
         uint64_t price_step{1};
-        uint64_t send_interval_us{100};
+        uint64_t send_interval_us{50};
         size_t poll_every{0};
+        uint64_t final_drain_ms{2000};
         bool use_market_orders{false};
         uint64_t target_active_limit{10'000};
         uint64_t target_active_stop{1'000};
@@ -206,6 +207,7 @@ namespace {
             << "  --pareto-scale <x>           default: 1.0\n"
             << "  --send-interval-us <n>       default: 1000\n"
             << "  --poll-every <n>             default: 0 (disabled)\n"
+            << "  --final-drain-ms <n>         default: 2000\n"
             << "  --stay-connected             keep sessions alive with heartbeats after sending all orders\n"
             << "  --market                     send market orders only\n";
     }
@@ -445,6 +447,12 @@ namespace {
                     std::cerr << "invalid --poll-every value\n";
                     return ParseResult::Error;
                 }
+            } else if (arg == "--final-drain-ms") {
+                const std::string v = need_value("--final-drain-ms");
+                if (!parse_u64(v, cfg.final_drain_ms)) {
+                    std::cerr << "invalid --final-drain-ms value\n";
+                    return ParseResult::Error;
+                }
             } else if (arg == "--stay-connected") {
                 cfg.stay_connected = true;
             } else if (arg == "--market") {
@@ -562,12 +570,15 @@ int main(int argc, char** argv) {
             ++logons_sent;
 
             const uint64_t step = cfg.price_step == 0 ? 1 : cfg.price_step;
+            uint64_t local_orders_sent = 0;
+            uint64_t local_responses_recv = 0;
             auto send_msg = [&](std::string_view msg) -> bool {
                 if (msg.empty() || !fix.send_raw(msg)) {
                     ++send_fail;
                     return false;
                 }
                 ++orders_sent;
+                ++local_orders_sent;
                 return true;
             };
 
@@ -743,7 +754,9 @@ int main(int argc, char** argv) {
                         ++poll_fail;
                     }
                     else {
-                        responses_recv.fetch_add(drain_fix_messages(fix), std::memory_order_relaxed);
+                        const uint64_t drained = drain_fix_messages(fix);
+                        local_responses_recv += drained;
+                        responses_recv.fetch_add(drained, std::memory_order_relaxed);
                     }
                 }
 
@@ -753,6 +766,36 @@ int main(int argc, char** argv) {
             }
 
             if (!cfg.stay_connected) {
+                constexpr uint64_t kIdleBreakPolls = 500; // ~500ms at 1ms sleep.
+                uint64_t idle_polls = 0;
+                const auto drain_deadline = std::chrono::steady_clock::now() +
+                    std::chrono::milliseconds(cfg.final_drain_ms);
+                while (local_responses_recv < local_orders_sent &&
+                       std::chrono::steady_clock::now() < drain_deadline) {
+                    if (!fix.poll()) {
+                        ++poll_fail;
+                        break;
+                    }
+                    const uint64_t drained = drain_fix_messages(fix);
+                    local_responses_recv += drained;
+                    responses_recv.fetch_add(drained, std::memory_order_relaxed);
+                    if (drained == 0) {
+                        ++idle_polls;
+                        if (idle_polls >= kIdleBreakPolls) {
+                            break;
+                        }
+                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    } else {
+                        idle_polls = 0;
+                    }
+                }
+                if (local_responses_recv < local_orders_sent) {
+                    std::cerr << "[client] response drain timed out client_id=" << id
+                              << " sent=" << local_orders_sent
+                              << " recv=" << local_responses_recv
+                              << " missing=" << (local_orders_sent - local_responses_recv)
+                              << "\n";
+                }
                 fix.disconnect();
                 return;
             }
@@ -764,7 +807,9 @@ int main(int argc, char** argv) {
                     ++poll_fail;
                 }
                 else {
-                    responses_recv.fetch_add(drain_fix_messages(fix), std::memory_order_relaxed);
+                    const uint64_t drained = drain_fix_messages(fix);
+                    local_responses_recv += drained;
+                    responses_recv.fetch_add(drained, std::memory_order_relaxed);
                 }
 
                 const auto now = std::chrono::steady_clock::now();
@@ -791,13 +836,18 @@ int main(int argc, char** argv) {
                                   ? static_cast<double>(orders_sent.load(std::memory_order_relaxed)) / elapsed_s
                                   : 0.0;
 
+    const uint64_t sent = orders_sent.load();
+    const uint64_t recv = responses_recv.load();
+    const uint64_t missing = sent > recv ? (sent - recv) : 0;
+
     std::cout
         << "[client] done in " << elapsed_ms << " ms\n"
         << "[client] connected_ok=" << connected_ok.load() << " connected_fail=" << connected_fail.load() << "\n"
         << "[client] logons_sent=" << logons_sent.load() << "\n"
-        << "[client] orders_sent=" << orders_sent.load() << " send_fail=" << send_fail.load()
+        << "[client] orders_sent=" << sent << " send_fail=" << send_fail.load()
         << " poll_fail=" << poll_fail.load()
-        << " responses_recv=" << responses_recv.load() << "\n"
+        << " responses_recv=" << recv
+        << " responses_missing=" << missing << "\n"
         << "[client] avg_order_rate=" << static_cast<uint64_t>(order_rate) << " orders/sec\n";
 
     return connected_ok.load() == 0 ? 2 : 0;

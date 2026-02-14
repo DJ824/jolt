@@ -10,8 +10,8 @@
 
 namespace jolt {
 
-    using GtwyToExch = SharedSpscQueue<GtwyToExchMsg, 1 << 15>;
-    using ExchToGtwy = SharedSpscQueue<ExchToGtwyMsg, 1 << 15>;
+    using GtwyToExch = SharedSpscQueue<GtwyToExchMsg, 1 << 20>;
+    using ExchToGtwy = SharedSpscQueue<ExchToGtwyMsg, 1 << 20>;
 
     static constexpr size_t kFixMaxMsg = 1024;
 

@@ -1,8 +1,10 @@
 #pragma once
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,11 +24,17 @@
 
 namespace jolt::gateway {
     class FixGateway {
+        struct ClientTrafficStats {
+            uint64_t received_from_client{0};
+            uint64_t sent_to_client{0};
+        };
 
         bool risk_check(const ClientInfo& client, const ob::OrderParams& order, ob::RejectReason& reason) const;
         void handle_exchange_msg(const ExchToGtwyMsg& msg);
         void queue_fix_message(const FixMessage& msg);
         SessionState* get_or_create_session(uint64_t session_id);
+        void record_client_received(uint64_t client_id);
+        void maybe_log_client_traffic();
 
         static bool build_exec_report(FixMessage& out,
                                       SessionState* session,
@@ -50,6 +58,9 @@ namespace jolt::gateway {
         std::array<char, 1024> recv_buf_;
         std::array<char, 1024> send_buf_;
         EventLoop event_loop_;
+        std::unordered_map<uint64_t, ClientTrafficStats> client_traffic_;
+        std::mutex client_traffic_mu_{};
+        std::chrono::steady_clock::time_point next_client_traffic_log_{};
 
     public:
         FixGateway(const std::string& gtwy_to_exch_name, const std::string& exch_to_gtwy_name);
@@ -63,8 +74,8 @@ namespace jolt::gateway {
         void poll_io();
         std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
         void clear_session_for_client(uint64_t client_id);
-        LockFreeQueue<FixMessage, 1 << 10> outbound_;
-        LockFreeQueue<FixMessage, 1 << 10> inbound_;
+        LockFreeQueue<FixMessage, 1 << 20> outbound_;
+        LockFreeQueue<FixMessage, 1 << 20> inbound_;
         std::vector<SessionState> sessions_;
 
     };

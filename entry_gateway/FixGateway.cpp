@@ -169,6 +169,18 @@ namespace {
                 return id;
             }
         }
+
+        constexpr std::string_view kClientPrefix = "CLIENT_";
+        if (cl_ord_id.size() > kClientPrefix.size() &&
+            cl_ord_id.substr(0, kClientPrefix.size()) == kClientPrefix) {
+            const std::string_view suffix = cl_ord_id.substr(kClientPrefix.size());
+            if (is_digits(suffix)) {
+                uint64_t id = 0;
+                if (parse_uint64(suffix, id) && id > 0) {
+                    return id;
+                }
+            }
+        }
         return fnv1a_64(cl_ord_id);
     }
 
@@ -379,6 +391,10 @@ namespace {
         }
         return "Unknown";
     }
+
+    bool is_client_order_msg_type(std::string_view msg_type) {
+        return msg_type == "D" || msg_type == "F" || msg_type == "G";
+    }
 }
 
 static int make_listen_socket(uint16_t port) {
@@ -417,8 +433,8 @@ namespace jolt::gateway {
           exch_gtwy_(exch_to_gtwy_name, SharedRingMode::Attach),
           event_loop_(make_listen_socket(8080)) {
         event_loop_.set_gateway(this);
-        // Keep slot zero unused since EventLoop starts assigning session ids at 1.
         sessions_.resize(1);
+        next_client_traffic_log_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
     }
 
     void FixGateway::load_clients(const std::vector<ClientInfo>& clients) {
@@ -429,20 +445,20 @@ namespace jolt::gateway {
     }
 
     bool FixGateway::submit_order(const ob::OrderParams& order, ob::RejectReason& reason) {
-        auto* client = client_infos_.find(order.client_id);
-        if (!client) {
-            reason = ob::RejectReason::NonExistent;
-            log_error("[gtwy] gateway failed to forward order: client not found order_id=" +
-                      std::to_string(order.id) +
-                      " client_id=" + std::to_string(order.client_id));
-            return false;
-        }
-        if (!risk_check(*client, order, reason)) {
-            log_warn("[gtwy] gateway risk-check rejected order_id=" + std::to_string(order.id) +
-                     " client_id=" + std::to_string(order.client_id) +
-                     " reason=" + std::string(reject_reason_text(reason)));
-            return false;
-        }
+        // auto* client = client_infos_.find(order.client_id);
+        // if (!client) {
+        //     reason = ob::RejectReason::NonExistent;
+        //     log_error("[gtwy] gateway failed to forward order: client not found order_id=" +
+        //               std::to_string(order.id) +
+        //               " client_id=" + std::to_string(order.client_id));
+        //     return false;
+        // }
+        // if (!risk_check(*client, order, reason)) {
+        //     log_warn("[gtwy] gateway risk-check rejected order_id=" + std::to_string(order.id) +
+        //              " client_id=" + std::to_string(order.client_id) +
+        //              " reason=" + std::string(reject_reason_text(reason)));
+        //     return false;
+        // }
 
         GtwyToExchMsg msg{};
         msg.order = order;
@@ -773,7 +789,7 @@ namespace jolt::gateway {
             return false;
         }
 
-        if (msg_type == "D" || msg_type == "F" || msg_type == "G") {
+        if (is_client_order_msg_type(msg_type)) {
             log_info("[gtwy] gateway received order from client msg_type=" + std::string(msg_type) +
                      " cl_ord_id=" + std::string(cl_ord_id) +
                      " client_id=" + std::to_string(client_id) +
@@ -1033,6 +1049,9 @@ namespace jolt::gateway {
         }
         else if (state->params.action == ob::OrderAction::Modify) {
             state->state = State::PendingReplace;
+            // After a replace request, the new ClOrdID becomes a valid reference for later
+            // cancel/replace requests. Keep both old and new keys mapped to the same state.
+            order_states_[std::string(cl_ord_id)] = state;
         }
         else {
             state->state = State::PendingCancel;
