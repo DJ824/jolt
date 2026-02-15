@@ -32,6 +32,10 @@ namespace {
     constexpr int kTagPort = 13001;
     constexpr int kTagRecoveryHost = 13002;
     constexpr int kTagRecoveryPort = 13003;
+    constexpr char kDefaultMdGroup[] = "239.0.0.1";
+    constexpr uint16_t kDefaultUdpBasePort = 20001;
+    constexpr char kDefaultRecoveryHost[] = "127.0.0.1";
+    constexpr uint16_t kDefaultRecoveryPort = 21001;
 
     struct FixMsg {
         std::unordered_map<int, std::string_view> fields{};
@@ -250,6 +254,15 @@ namespace jolt::md {
     MarketDataGateway::MarketDataGateway() : event_loop_(make_listen_socket(80))
     {
         event_loop_.set_gateway(this);
+
+        for (size_t i = 0; i < jolt::kNumSymbols; ++i) {
+            const uint16_t symbol_id = static_cast<uint16_t>(jolt::kFirstSymbolId + i);
+            const std::string symbol = std::to_string(symbol_id);
+            add_symbol_channel(symbol, kDefaultMdGroup, static_cast<uint16_t>(kDefaultUdpBasePort + i));
+            symbol_to_id_[symbol] = symbol_id;
+        }
+        set_recovery_endpoint(kDefaultRecoveryHost, kDefaultRecoveryPort);
+
         setup();
     }
 
@@ -532,21 +545,14 @@ namespace jolt::md {
                 req.request_id = ++request_id_;
                 req.symbol_id = symbol_to_id_[std::string(symbol)];
 
-                // request_queue_.enqueue(req);
-                //
-                // auto resp = snapshot_meta_.dequeue();
-                // if (resp && resp->request_id == req.request_id) {
-                //     auto idx = resp->slot_id;
-                //     auto seq = resp->snapshot_seq;
-                //     auto slot = snapshot_blob_.reader_slot(idx);
-                //     FixMessage out{};
-                //     if (!build_subscribe_response(out, session, req_id, symbol, chan_it->second)) {
-                //         return false;
-                //     }
-                //     out.session_id = session_id;
-                //     queue_fix_message(out);
-                // }
+                (void)req;
 
+                FixMessage out{};
+                if (!build_subscribe_response(out, session, req_id, symbol, chan_it->second)) {
+                    return false;
+                }
+                out.session_id = session_id;
+                queue_fix_message(out);
 
                 return true;
             }

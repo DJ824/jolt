@@ -116,6 +116,7 @@ private:
     std::atomic<bool> running_{false};
 };
 
-#define log_info(...) ((void)0)
+// #define log_info(...) ((void)0)
+inline void log_info(std::string_view msg) { AsyncLogger::instance().info(msg); }
 inline void log_warn(std::string_view msg) { AsyncLogger::instance().warn(msg); }
 inline void log_error(std::string_view msg) { AsyncLogger::instance().error(msg); }

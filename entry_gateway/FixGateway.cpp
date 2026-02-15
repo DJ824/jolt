@@ -220,6 +220,95 @@ namespace {
         return true;
     }
 
+
+    static bool parse_fix_simd(std::string_view msg, FixMsg& out) {
+        out.fields.clear();
+        char delim = kFixDelim;
+
+        if (msg.find(kFixDelim) == std::string_view::npos && msg.find('|') != std::string_view::npos) {
+            delim = '|';
+        }
+
+        out.delim = delim;
+
+        const __m256i needle_delim = _mm256_set1_epi8(delim);
+        const __m256i needle_eq = _mm256_set1_epi8('=');
+        const char* base = msg.data();
+        const char* p = base;
+        const char* end = base + msg.size();
+        const size_t npos = std::string_view::npos;
+
+        size_t field_start = 0;
+        size_t eq_pos = npos;
+
+        auto emit_field = [&](size_t field_end) -> bool {
+            if (eq_pos == npos || eq_pos < field_start || eq_pos >= field_end) {
+                return false;
+            }
+
+            std::string_view tag_view(base + field_start, eq_pos - field_start);
+            uint64_t tag = 0;
+            auto [ptr, ec] = std::from_chars(tag_view.data(), tag_view.data() + tag_view.size(), tag);
+            if (ec != std::errc{} || ptr != tag_view.data() + tag_view.size()) {
+                return false;
+            }
+
+            std::string_view value_view(base + eq_pos + 1, field_end - (eq_pos + 1));
+            out.fields.insert({tag, value_view});
+            field_start = field_end + 1;
+            eq_pos = npos;
+            return true;
+        };
+
+        while (p + 32 <= end) {
+            __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(p));
+            __m256i dv = _mm256_cmpeq_epi8(chunk, needle_delim);
+            __m256i eqv = _mm256_cmpeq_epi8(chunk, needle_eq);
+
+            uint32_t d_mask = _mm256_movemask_epi8(dv);
+            uint32_t eq_mask = _mm256_movemask_epi8(eqv);
+            uint32_t combined = eq_mask | d_mask;
+
+            while (combined) {
+                uint32_t bit = combined & (~combined + 1);
+                int idx = __builtin_ctz(combined);
+                size_t pos = p - base + idx;
+                if (d_mask & bit) {
+                    if (!emit_field(pos)) {
+                        return false;
+                    }
+                }
+                else if (eq_pos == npos) {
+                    eq_pos = pos;
+                }
+                combined ^= bit;
+            }
+            p += 32;
+        }
+
+        for (; p < end; ++p) {
+            if (*p == '=' && eq_pos == npos) {
+                eq_pos = static_cast<size_t>(p - base);
+            }
+            else if (*p == delim) {
+                if (!emit_field(static_cast<size_t>(p - base))) {
+                    return false;
+                }
+            }
+        }
+
+        if (field_start < msg.size()) {
+            if (!emit_field(msg.size())) {
+                return false;
+            }
+        }
+        else if (eq_pos != npos) {
+            return false;
+        }
+
+        return true;
+    }
+
     struct FixBuffer {
         char* data{nullptr};
         size_t len{0};
@@ -466,7 +555,7 @@ namespace jolt::gateway {
         if (!gtwy_exch_.enqueue(msg)) {
             reason = ob::RejectReason::NotApplicable;
             log_error("[gtwy] gateway->exchange enqueue failed order_id=" + std::to_string(order.id) +
-                      " client_id=" + std::to_string(order.client_id));
+                " client_id=" + std::to_string(order.client_id));
             return false;
         }
 
@@ -774,7 +863,7 @@ namespace jolt::gateway {
         auto cl_ord_id = get_tag(msg, 11);
         if (cl_ord_id.empty()) {
             log_error("[gtwy] gateway received order without ClOrdID client_id=" + std::to_string(client_id) +
-                      " session=" + std::to_string(session_id));
+                " session=" + std::to_string(session_id));
             return false;
         }
 
@@ -786,15 +875,15 @@ namespace jolt::gateway {
 
         if (msg_type.size() != 1) {
             log_error("[gtwy] gateway received invalid MsgType for order client_id=" + std::to_string(client_id) +
-                      " session=" + std::to_string(session_id));
+                " session=" + std::to_string(session_id));
             return false;
         }
 
         if (is_client_order_msg_type(msg_type)) {
             log_info("[gtwy] gateway received order from client msg_type=" + std::string(msg_type) +
-                     " cl_ord_id=" + std::string(cl_ord_id) +
-                     " client_id=" + std::to_string(client_id) +
-                     " session=" + std::to_string(session_id));
+                " cl_ord_id=" + std::string(cl_ord_id) +
+                " client_id=" + std::to_string(client_id) +
+                " session=" + std::to_string(session_id));
         }
 
         switch (msg_type[0]) {
@@ -818,16 +907,16 @@ namespace jolt::gateway {
         case 'F':
             if (orig_cl_ord_id.empty()) {
                 log_error("[gtwy] gateway cancel missing OrigClOrdID cl_ord_id=" + std::string(cl_ord_id) +
-                          " client_id=" + std::to_string(client_id) +
-                          " session=" + std::to_string(session_id));
+                    " client_id=" + std::to_string(client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             {
                 auto it = order_states_.find(std::string(orig_cl_ord_id));
                 if (it == order_states_.end() || !it->second) {
                     log_error("[gtwy] gateway cancel references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                              " client_id=" + std::to_string(client_id) +
-                              " session=" + std::to_string(session_id));
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
                     return false;
                 }
                 state = it->second;
@@ -838,16 +927,16 @@ namespace jolt::gateway {
         case 'G':
             if (orig_cl_ord_id.empty()) {
                 log_error("[gtwy] gateway replace missing OrigClOrdID cl_ord_id=" + std::string(cl_ord_id) +
-                          " client_id=" + std::to_string(client_id) +
-                          " session=" + std::to_string(session_id));
+                    " client_id=" + std::to_string(client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             {
                 auto it = order_states_.find(std::string(orig_cl_ord_id));
                 if (it == order_states_.end() || !it->second) {
                     log_error("[gtwy] gateway replace references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                              " client_id=" + std::to_string(client_id) +
-                              " session=" + std::to_string(session_id));
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
                     return false;
                 }
                 state = it->second;
@@ -857,8 +946,8 @@ namespace jolt::gateway {
             break;
         default:
             log_error("[gtwy] gateway unsupported order MsgType=" + std::string(msg_type) +
-                      " client_id=" + std::to_string(client_id) +
-                      " session=" + std::to_string(session_id));
+                " client_id=" + std::to_string(client_id) +
+                " session=" + std::to_string(session_id));
             return false;
         }
 
@@ -875,9 +964,9 @@ namespace jolt::gateway {
             uint16_t symbol_id = 0;
             if (!parse_symbol_id(symbol, symbol_id)) {
                 log_error("[gtwy] gateway failed parsing symbol tag55 value=" + std::string(symbol) +
-                          " order_id=" + std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    " order_id=" + std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             state->params.symbol_id = symbol_id;
@@ -885,8 +974,8 @@ namespace jolt::gateway {
         }
         else if (state->params.action == ob::OrderAction::New) {
             log_error("[gtwy] gateway new order missing symbol tag55 order_id=" + std::to_string(state->params.id) +
-                      " client_id=" + std::to_string(state->params.client_id) +
-                      " session=" + std::to_string(session_id));
+                " client_id=" + std::to_string(state->params.client_id) +
+                " session=" + std::to_string(session_id));
             return false;
         }
 
@@ -899,8 +988,8 @@ namespace jolt::gateway {
         }
         else if (state->params.action == ob::OrderAction::New) {
             log_error("[gtwy] gateway new order missing side tag54 order_id=" + std::to_string(state->params.id) +
-                      " client_id=" + std::to_string(state->params.client_id) +
-                      " session=" + std::to_string(session_id));
+                " client_id=" + std::to_string(state->params.client_id) +
+                " session=" + std::to_string(session_id));
             return false;
         }
 
@@ -930,7 +1019,8 @@ namespace jolt::gateway {
                 if (state->params.action == ob::OrderAction::New) {
                     invalid_ord_type = true;
                 }
-            } else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
+            }
+            else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
                 invalid_ord_type = true;
             }
         }
@@ -941,9 +1031,9 @@ namespace jolt::gateway {
             uint64_t qty = 0;
             if (!parse_uint64(qty_tag, qty)) {
                 log_error("[gtwy] gateway failed parsing qty tag38 value=" + std::string(qty_tag) +
-                          " order_id=" + std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    " order_id=" + std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             state->params.qty = qty;
@@ -954,9 +1044,9 @@ namespace jolt::gateway {
             ob::PriceTick price = 0;
             if (!parse_uint32(price_tag, price)) {
                 log_error("[gtwy] gateway failed parsing price tag44 value=" + std::string(price_tag) +
-                          " order_id=" + std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    " order_id=" + std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             if (state->params.type == ob::OrderType::StopLimit) {
@@ -972,9 +1062,9 @@ namespace jolt::gateway {
             ob::PriceTick trigger = 0;
             if (!parse_uint32(stop_px, trigger)) {
                 log_error("[gtwy] gateway failed parsing stop tag99 value=" + std::string(stop_px) +
-                          " order_id=" + std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    " order_id=" + std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             state->params.trigger = trigger;
@@ -991,15 +1081,19 @@ namespace jolt::gateway {
         if (state->params.action == ob::OrderAction::New) {
             if (invalid_ord_type) {
                 reason = ob::RejectReason::InvalidType;
-            } else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
+            }
+            else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
                 reason = ob::RejectReason::InvalidPrice;
-            } else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
+            }
+            else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
                 reason = ob::RejectReason::InvalidPrice;
-            } else if (state->params.type == ob::OrderType::StopLimit &&
+            }
+            else if (state->params.type == ob::OrderType::StopLimit &&
                 (state->params.trigger == 0 || state->params.limit_px == 0)) {
                 reason = ob::RejectReason::InvalidPrice;
             }
-        } else if (state->params.action == ob::OrderAction::Modify && invalid_ord_type) {
+        }
+        else if (state->params.action == ob::OrderAction::Modify && invalid_ord_type) {
             reason = ob::RejectReason::InvalidType;
         }
 
@@ -1009,16 +1103,16 @@ namespace jolt::gateway {
 
         if (reason != ob::RejectReason::NotApplicable) {
             log_warn("[gtwy] gateway local reject order_id=" + std::to_string(state->params.id) +
-                     " client_id=" + std::to_string(state->params.client_id) +
-                     " session=" + std::to_string(session_id) +
-                     " action=" + std::string(order_action_text(state->params.action)) +
-                     " reason=" + std::string(reject_reason_text(reason)));
+                " client_id=" + std::to_string(state->params.client_id) +
+                " session=" + std::to_string(session_id) +
+                " action=" + std::string(order_action_text(state->params.action)) +
+                " reason=" + std::string(reject_reason_text(reason)));
             FixMessage fix{};
             if (!build_exec_report(fix, session, *state, next_exec_id_++, false, reason)) {
                 log_error("[gtwy] gateway failed building reject ExecReport order_id=" +
-                          std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             state->state = State::Rejected;
@@ -1028,15 +1122,15 @@ namespace jolt::gateway {
 
         if (!submit_order(state->params, reason)) {
             log_error("[gtwy] gateway submit_order failed order_id=" + std::to_string(state->params.id) +
-                      " client_id=" + std::to_string(state->params.client_id) +
-                      " session=" + std::to_string(session_id) +
-                      " reason=" + std::string(reject_reason_text(reason)));
+                " client_id=" + std::to_string(state->params.client_id) +
+                " session=" + std::to_string(session_id) +
+                " reason=" + std::string(reject_reason_text(reason)));
             FixMessage fix{};
             if (!build_exec_report(fix, session, *state, next_exec_id_++, false, reason)) {
                 log_error("[gtwy] gateway failed building submit-failed ExecReport order_id=" +
-                          std::to_string(state->params.id) +
-                          " client_id=" + std::to_string(state->params.client_id) +
-                          " session=" + std::to_string(session_id));
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
                 return false;
             }
             queue_fix_message(std::move(fix));
@@ -1084,9 +1178,9 @@ namespace jolt::gateway {
     void FixGateway::poll_exchange() {
         while (auto msg = exch_gtwy_.dequeue()) {
             log_info("[gtwy] gateway received response from exchange type=" +
-                     std::string(exchange_msg_type_text(msg->type)) +
-                     " order_id=" + std::to_string(msg->order_id) +
-                     " client_id=" + std::to_string(msg->client_id));
+                std::string(exchange_msg_type_text(msg->type)) +
+                " order_id=" + std::to_string(msg->order_id) +
+                " client_id=" + std::to_string(msg->client_id));
             handle_exchange_msg(*msg);
         }
     }
@@ -1107,7 +1201,7 @@ namespace jolt::gateway {
             }
             if (!on_fix_message({msg->data.data(), msg->len}, msg->session_id)) {
                 log_error("[gtwy] gateway failed handling inbound FIX from client session=" +
-                          std::to_string(msg->session_id));
+                    std::to_string(msg->session_id));
             }
         }
     }
@@ -1151,8 +1245,8 @@ namespace jolt::gateway {
 
         if (it == order_id_to_state_.end() || !it->second) {
             log_warn("[gtwy] gateway got exchange response for unknown order_id=" +
-                     std::to_string(state_order_id) +
-                     " client_id=" + std::to_string(msg.client_id));
+                std::to_string(state_order_id) +
+                " client_id=" + std::to_string(msg.client_id));
             return;
         }
         auto order_state = it->second;
@@ -1161,18 +1255,18 @@ namespace jolt::gateway {
 
         if (sess_id == UINT64_MAX || sess_id >= sessions_.size()) {
             log_warn("[gtwy] gateway cannot route exchange response, invalid session order_id=" +
-                     std::to_string(state_order_id) +
-                     " client_id=" + std::to_string(order_state->params.client_id) +
-                     " session=" + std::to_string(sess_id));
+                std::to_string(state_order_id) +
+                " client_id=" + std::to_string(order_state->params.client_id) +
+                " session=" + std::to_string(sess_id));
             return;
         }
         auto* sess = &sessions_[sess_id];
 
         if (!sess->initialized) {
             log_warn("[gtwy] gateway session not initialized for exchange response order_id=" +
-                     std::to_string(state_order_id) +
-                     " client_id=" + std::to_string(order_state->params.client_id) +
-                     " session=" + std::to_string(sess_id));
+                std::to_string(state_order_id) +
+                " client_id=" + std::to_string(order_state->params.client_id) +
+                " session=" + std::to_string(sess_id));
             return;
         }
 
@@ -1198,15 +1292,14 @@ namespace jolt::gateway {
 
                 if (!build_exec_report(fix_submit, sess, *state, next_exec_id_++, true, msg.reason)) {
                     log_error("[gtwy] gateway failed building submit ExecReport order_id=" +
-                              std::to_string(state_order_id) +
-                              " client_id=" + std::to_string(state->params.client_id) +
-                              " session=" + std::to_string(sess_id));
+                        std::to_string(state_order_id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(sess_id));
                     return;
                 }
 
                 queue_fix_message(fix_submit);
                 break;
-
             }
 
         case ExchToGtwyMsg::Type::Rejected:
@@ -1216,9 +1309,9 @@ namespace jolt::gateway {
 
                 if (!build_exec_report(fix_reject, sess, *state, next_exec_id_++, false, msg.reason)) {
                     log_error("[gtwy] gateway failed building reject ExecReport order_id=" +
-                              std::to_string(state_order_id) +
-                              " client_id=" + std::to_string(state->params.client_id) +
-                              " session=" + std::to_string(sess_id));
+                        std::to_string(state_order_id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(sess_id));
                     return;
                 }
 
@@ -1237,23 +1330,23 @@ namespace jolt::gateway {
 
                 if (!build_exec_report(fix_fill, sess, *state, next_exec_id_++, true, msg.reason)) {
                     log_error("[gtwy] gateway failed building fill ExecReport order_id=" +
-                              std::to_string(state_order_id) +
-                              " client_id=" + std::to_string(state->params.client_id) +
-                              " session=" + std::to_string(sess_id));
+                        std::to_string(state_order_id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(sess_id));
                     return;
                 }
 
                 queue_fix_message(fix_fill);
                 break;
             }
-            default: break;
+        default: break;
         }
     }
 
     void FixGateway::queue_fix_message(const FixMessage& msg) {
         if (!outbound_.enqueue(msg)) {
             log_error("[gtwy] gateway outbound queue full while routing response session=" +
-                      std::to_string(msg.session_id));
+                std::to_string(msg.session_id));
         }
     }
 

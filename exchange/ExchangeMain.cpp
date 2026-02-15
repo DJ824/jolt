@@ -44,11 +44,6 @@ int main() {
         "snapshot_meta_q",
         kReqQ);
 
-    constexpr std::array<uint64_t, 4> kSymbols{1, 2, 3, 4};
-    std::cout << "[exchange] symbols: ";
-    for (size_t i = 0; i < kSymbols.size(); ++i) {
-        std::cout << kSymbols[i] << (i + 1 == kSymbols.size() ? '\n' : ',');
-    }
 
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
