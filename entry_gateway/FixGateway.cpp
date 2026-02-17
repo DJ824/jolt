@@ -220,6 +220,40 @@ namespace {
         return true;
     }
 
+    std::string payload_preview_for_log(std::string_view payload) {
+        if (payload.empty()) {
+            return "<empty>";
+        }
+
+        constexpr size_t kPreviewBytes = 256;
+        constexpr char kHexDigits[] = "0123456789ABCDEF";
+        const size_t preview_len = std::min(payload.size(), kPreviewBytes);
+
+        std::string out;
+        out.reserve(preview_len * 4 + 32);
+        for (size_t i = 0; i < preview_len; ++i) {
+            const unsigned char ch = static_cast<unsigned char>(payload[i]);
+            if (ch == static_cast<unsigned char>(kFixDelim)) {
+                out.push_back('|');
+                continue;
+            }
+            if (std::isprint(ch) != 0 && ch != '\\') {
+                out.push_back(static_cast<char>(ch));
+                continue;
+            }
+
+            out += "\\x";
+            out.push_back(kHexDigits[ch >> 4]);
+            out.push_back(kHexDigits[ch & 0x0F]);
+        }
+        if (preview_len < payload.size()) {
+            out += "...(truncated,total_bytes=";
+            out += std::to_string(payload.size());
+            out += ")";
+        }
+        return out;
+    }
+
 
     static bool parse_fix_simd(std::string_view msg, FixMsg& out) {
         out.fields.clear();
@@ -795,7 +829,9 @@ namespace jolt::gateway {
     bool FixGateway::on_fix_message(std::string_view message, uint64_t session_id) {
         FixMsg msg{};
         if (!parse_fix_message(message, msg)) {
-            log_error("[gtwy] gateway failed to parse FIX from client session=" + std::to_string(session_id));
+            log_error("[gtwy] gateway failed to parse FIX from client session=" + std::to_string(session_id) +
+                      " bytes=" + std::to_string(message.size()) +
+                      " payload=\"" + payload_preview_for_log(message) + "\"");
             return false;
         }
 
@@ -859,11 +895,24 @@ namespace jolt::gateway {
             throw std::runtime_error("[gtwy] failed to build logon msg");
         }
 
+        // Only D/F/G are order flow. Ignore session-level traffic here.
+        if (!is_client_order_msg_type(msg_type)) {
+            if (msg_type == "0" || msg_type == "1" || msg_type == "5") {
+                return true;
+            }
+            log_warn("[gtwy] gateway ignoring non-order MsgType=" + std::string(msg_type) +
+                     " client_id=" + std::to_string(client_id) +
+                     " session=" + std::to_string(session_id));
+            return true;
+        }
+
         OrderState* state = nullptr;
         auto cl_ord_id = get_tag(msg, 11);
         if (cl_ord_id.empty()) {
             log_error("[gtwy] gateway received order without ClOrdID client_id=" + std::to_string(client_id) +
-                " session=" + std::to_string(session_id));
+                " session=" + std::to_string(session_id) +
+                " msg_type=" + std::string(msg_type) +
+                " payload=\"" + payload_preview_for_log(message) + "\"");
             return false;
         }
 
@@ -1189,12 +1238,25 @@ namespace jolt::gateway {
         while (auto msg = inbound_.dequeue()) {
             if (msg->len == 0) {
                 const uint64_t disconnected_session_id = msg->session_id;
+                if (disconnected_session_id < sessions_.size()) {
+                    auto& session = sessions_[disconnected_session_id];
+                    session.logged_on = false;
+                    session.initialized = false;
+                }
                 for (auto& [_, client] : clients_) {
                     if (!client) {
                         continue;
                     }
                     if (client->get_session_id() == disconnected_session_id) {
                         client->set_session_id(UINT64_MAX);
+                    }
+                }
+                for (auto& [_, state] : order_id_to_state_) {
+                    if (!state) {
+                        continue;
+                    }
+                    if (state->session_id == disconnected_session_id) {
+                        state->session_id = UINT64_MAX;
                     }
                 }
                 continue;
@@ -1254,19 +1316,11 @@ namespace jolt::gateway {
         const uint64_t sess_id = order_state->session_id;
 
         if (sess_id == UINT64_MAX || sess_id >= sessions_.size()) {
-            log_warn("[gtwy] gateway cannot route exchange response, invalid session order_id=" +
-                std::to_string(state_order_id) +
-                " client_id=" + std::to_string(order_state->params.client_id) +
-                " session=" + std::to_string(sess_id));
             return;
         }
         auto* sess = &sessions_[sess_id];
 
         if (!sess->initialized) {
-            log_warn("[gtwy] gateway session not initialized for exchange response order_id=" +
-                std::to_string(state_order_id) +
-                " client_id=" + std::to_string(order_state->params.client_id) +
-                " session=" + std::to_string(sess_id));
             return;
         }
 
@@ -1344,6 +1398,11 @@ namespace jolt::gateway {
     }
 
     void FixGateway::queue_fix_message(const FixMessage& msg) {
+        if (msg.session_id >= sessions_.size() ||
+            msg.session_id == UINT64_MAX ||
+            !sessions_[msg.session_id].initialized) {
+            return;
+        }
         if (!outbound_.enqueue(msg)) {
             log_error("[gtwy] gateway outbound queue full while routing response session=" +
                 std::to_string(msg.session_id));

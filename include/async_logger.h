@@ -111,12 +111,14 @@ private:
         }
     }
 
-    LockFreeQueue<Record, 1024> queue_;
+    LockFreeQueue<Record, 1 << 20> queue_;
     std::thread worker_;
     std::atomic<bool> running_{false};
 };
 
-// #define log_info(...) ((void)0)
-inline void log_info(std::string_view msg) { AsyncLogger::instance().info(msg); }
-inline void log_warn(std::string_view msg) { AsyncLogger::instance().warn(msg); }
-inline void log_error(std::string_view msg) { AsyncLogger::instance().error(msg); }
+#define log_info(...) ((void)0)
+#define log_warn(...) ((void)0)
+#define log_error(...) ((void)0)
+// inline void log_info(std::string_view msg) { AsyncLogger::instance().info(msg); }
+// inline void log_warn(std::string_view msg) { AsyncLogger::instance().warn(msg); }
+// inline void log_error(std::string_view msg) { AsyncLogger::instance().error(msg); }

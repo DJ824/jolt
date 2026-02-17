@@ -2,7 +2,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 #include <sys/epoll.h>
@@ -30,17 +29,15 @@ namespace jolt::gateway {
         void start();
         size_t connection_count() const;
         uint64_t session_id_assign_{0};
-        FixSession* lookup(uint64_t id);
 
     private:
         std::thread run_thread;
         void accept_sessions();
-        void update_interest(int fd, uint64_t id, bool want_write);
+        bool update_interest(FixSession* session, int fd, uint64_t id, bool want_write);
         std::atomic<bool> running_{false};
         int epoll_fd_{-1};
         int listen_fd_{-1};
         FixGateway* gateway_{nullptr};
-        std::unordered_map<uint64_t, std::unique_ptr<FixSession>> sessions_;
         std::vector<std::unique_ptr<FixSession>> active_sessions_;
         std::vector<epoll_event> events_{};
     };

@@ -68,6 +68,7 @@ namespace jolt::gateway {
         FixGateway* gateway_{nullptr};
 
         bool closed_{false};
+        bool write_interest_enabled_{false};
         void close();
 
         uint64_t session_id_{0};
