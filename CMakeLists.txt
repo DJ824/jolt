@@ -19,19 +19,29 @@ find_library(URING_LIBRARY uring REQUIRED)
 
 set(COMMON_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(Client
-        client/ClientMain.cpp
+add_executable(OrderClient
+        client/OrderClient/ClientMain.cpp
+        client/OrderClient/OrderClient.cpp
+        client/OrderClient/OrderClient.h
         client/FixClient.cpp
         client/FixClient.h
         market_data_gateway/MarketDataTypes.h
-        client/MarketMaker.cpp
-        client/MarketMaker.h
-        client/NoiseTrader.cpp
-        client/NoiseTrader.h
-        client/MomemtumTrader.cpp
-        client/MomemtumTrader.h
+        include/async_logger.h
 )
-target_include_directories(Client PRIVATE ${COMMON_INCLUDE_DIR})
+target_include_directories(OrderClient PRIVATE ${COMMON_INCLUDE_DIR})
+target_link_libraries(OrderClient PRIVATE Threads::Threads)
+
+add_executable(MarketDataClient
+        client/MarketDataClient/MarketDataClient.cpp
+        client/MarketDataClient/MarketDataClient.h
+        client/MarketDataClient/MarketDataClientMain.cpp
+        client/FixClient.cpp
+        client/FixClient.h
+        market_data_gateway/MarketDataTypes.h
+        include/async_logger.h
+)
+target_include_directories(MarketDataClient PRIVATE ${COMMON_INCLUDE_DIR})
+target_link_libraries(MarketDataClient PRIVATE Threads::Threads)
 
 add_executable(EntryGateway
         entry_gateway/GatewayMain.cpp
@@ -48,6 +58,12 @@ add_executable(EntryGateway
 target_include_directories(EntryGateway PRIVATE ${COMMON_INCLUDE_DIR})
 target_link_libraries(EntryGateway PRIVATE Threads::Threads)
 target_compile_options(EntryGateway PRIVATE -mavx2)
+
+add_executable(MatchingEngineBench
+        benchmark/matching_engine_bench.cpp
+)
+target_include_directories(MatchingEngineBench PRIVATE ${COMMON_INCLUDE_DIR})
+target_link_libraries(MatchingEngineBench PRIVATE Threads::Threads)
 
 add_executable(Exchange
         exchange/ExchangeMain.cpp
