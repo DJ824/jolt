@@ -11,16 +11,16 @@
 
 namespace jolt::client {
     struct ClientConfig {
-        std::string host{"127.0.0.1"};
+        std::string host{"3.133.154.91"};
         std::string port{"8080"};
-        size_t clients{50};
+        size_t clients{10};
         uint64_t total_orders{500'000};
         uint64_t orders_per_client_override{0};
         uint64_t qty{1};
         uint64_t base_price{60'000};
         uint64_t price_step{1};
-        uint64_t send_interval_us{10};
-        size_t poll_every{0};
+        uint64_t send_interval_us{0};
+        size_t poll_every{64};
         uint64_t final_drain_ms{2000};
         bool use_market_orders{false};
         uint64_t target_active_limit{10'000};

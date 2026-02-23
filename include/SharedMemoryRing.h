@@ -2,15 +2,21 @@
 
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 
 #include <fcntl.h>
@@ -22,6 +28,8 @@
 #define CACHE_LINE_SIZE 64
 #endif
 
+enum class SharedRingMode : uint8_t { Create = 0, Attach = 1 };
+
 namespace shared_ring_detail {
     inline std::string normalize_shm_name(std::string name) {
         if (name.empty()) {
@@ -32,9 +40,73 @@ namespace shared_ring_detail {
         }
         return name;
     }
+
+    inline bool should_use_local_fallback(int err) noexcept {
+        return err == EPERM || err == EACCES || err == ENOSYS;
+    }
+
+    struct LocalSegment {
+        std::unique_ptr<std::byte[], void(*)(void*)> mem{nullptr, +[](void* p) { std::free(p); }};
+        size_t size{0};
+        size_t refs{0};
+    };
+
+    inline std::unordered_map<std::string, LocalSegment>& local_segments() {
+        static std::unordered_map<std::string, LocalSegment> segs;
+        return segs;
+    }
+
+    inline std::mutex& local_segments_mutex() {
+        static std::mutex m;
+        return m;
+    }
+
+    inline void* acquire_local_segment(const std::string& name, size_t bytes, SharedRingMode mode) {
+        std::lock_guard<std::mutex> lock(local_segments_mutex());
+        auto& segs = local_segments();
+        auto it = segs.find(name);
+
+        if (it == segs.end()) {
+            if (mode == SharedRingMode::Attach) {
+                throw std::runtime_error("shared ring local segment not found");
+            }
+            void* raw = nullptr;
+            if (::posix_memalign(&raw, CACHE_LINE_SIZE, bytes) != 0 || !raw) {
+                throw std::runtime_error("local segment allocation failed");
+            }
+            std::memset(raw, 0, bytes);
+            LocalSegment seg;
+            seg.mem.reset(static_cast<std::byte*>(raw));
+            seg.size = bytes;
+            seg.refs = 1;
+            auto [inserted, ok] = segs.emplace(name, std::move(seg));
+            (void)ok;
+            return inserted->second.mem.get();
+        }
+
+        if (it->second.size != bytes) {
+            throw std::runtime_error("shared ring local segment size mismatch");
+        }
+        ++it->second.refs;
+        return it->second.mem.get();
+    }
+
+    inline void release_local_segment(const std::string& name) noexcept {
+        std::lock_guard<std::mutex> lock(local_segments_mutex());
+        auto& segs = local_segments();
+        auto it = segs.find(name);
+        if (it == segs.end()) {
+            return;
+        }
+        if (it->second.refs > 0) {
+            --it->second.refs;
+        }
+        if (it->second.refs == 0) {
+            segs.erase(it);
+        }
+    }
 }
 
-enum class SharedRingMode : uint8_t { Create = 0, Attach = 1 };
 
 struct SharedRingOptions {
     bool unlink_on_destroy{false};
@@ -72,6 +144,7 @@ class SharedSpscQueue {
         void* map_{nullptr};
         size_t map_size_{0};
         bool owner_{false};
+        bool local_fallback_{false};
         SharedRingHeader* header_{nullptr};
         Storage* base_{nullptr};
         size_t head_cache_{0};
@@ -85,7 +158,19 @@ public:
             fd_ = ::shm_open(name_.c_str(), oflag, opt.permissions);
 
             if (fd_ == -1) {
-                throw std::runtime_error("shm_open failed");
+                if (!shared_ring_detail::should_use_local_fallback(errno)) {
+                    throw std::runtime_error("shm_open failed");
+                }
+                map_size_ = bytes;
+                map_ = shared_ring_detail::acquire_local_segment(name_, map_size_, mode);
+                local_fallback_ = true;
+                owner_ = (mode == SharedRingMode::Create);
+                std::fprintf(stderr,
+                             "[SharedSpscQueue] shm_open unavailable (%s); using process-local fallback for %s\n",
+                             std::strerror(errno),
+                             name_.c_str());
+                init_view(mode);
+                return;
             }
 
             owner_ = (mode == SharedRingMode::Create);
@@ -106,6 +191,10 @@ public:
         }
 
         ~SharedSpscQueue() {
+            if (local_fallback_) {
+                shared_ring_detail::release_local_segment(name_);
+                return;
+            }
             if (map_ && map_ != MAP_FAILED) {
                 ::munmap(map_, map_size_);
             }
@@ -132,6 +221,7 @@ public:
             map_ = other.map_;
             map_size_ = other.map_size_;
             owner_ = other.owner_;
+            local_fallback_ = other.local_fallback_;
             header_ = other.header_;
             base_ = other.base_;
             head_cache_ = other.head_cache_;
@@ -140,6 +230,7 @@ public:
             other.map_ = nullptr;
             other.map_size_ = 0;
             other.owner_ = false;
+            other.local_fallback_ = false;
             other.header_ = nullptr;
             other.base_ = nullptr;
             return *this;
@@ -157,6 +248,20 @@ public:
             }
             (*base_)[curr_tail & kMask] = std::forward<U>(item);
             header_->tail.store(next_tail, std::memory_order_release);
+            return true;
+        }
+
+        bool try_dequeue(T& out) {
+            const size_t curr_head = header_->head.load(std::memory_order_relaxed);
+            if (curr_head == tail_cache_) {
+                tail_cache_ = header_->tail.load(std::memory_order_acquire);
+                if (curr_head == tail_cache_) {
+                    return false;
+                }
+            }
+            T* item_ptr = get_slot(curr_head);
+            out = std::move(*item_ptr);
+            header_->head.store((curr_head + 1) & kMask, std::memory_order_release);
             return true;
         }
 

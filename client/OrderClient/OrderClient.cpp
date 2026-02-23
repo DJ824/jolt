@@ -23,6 +23,11 @@ namespace jolt::client {
             LimitTaker,
             Market
         };
+        constexpr size_t kScenarioOpCount = 11;
+
+        constexpr size_t op_index(ScenarioOp op) {
+            return static_cast<size_t>(op);
+        }
 
         struct ManagedOrder {
             std::string cl_ord_id{};
@@ -82,7 +87,7 @@ namespace jolt::client {
         };
 
         constexpr std::array<std::pair<ScenarioOp, size_t>, 11> kOrderMix{{
-            {ScenarioOp::Limit, 283},
+            {ScenarioOp::Limit, 252},
             {ScenarioOp::ModifyLimit, 124},
             {ScenarioOp::StopLimit, 114},
             {ScenarioOp::Stop, 114},
@@ -92,13 +97,27 @@ namespace jolt::client {
             {ScenarioOp::ModifyStopLimit, 49},
             {ScenarioOp::ModifyStop, 49},
             {ScenarioOp::LimitTaker, 27},
-            {ScenarioOp::Market, 25},
+            {ScenarioOp::Market, 55},
+        }};
+
+        constexpr std::array<ScenarioOp, kScenarioOpCount> kCoverageOrder{{
+            ScenarioOp::Limit,
+            ScenarioOp::ModifyLimit,
+            ScenarioOp::CancelLimit,
+            ScenarioOp::Stop,
+            ScenarioOp::ModifyStop,
+            ScenarioOp::CancelStop,
+            ScenarioOp::StopLimit,
+            ScenarioOp::ModifyStopLimit,
+            ScenarioOp::CancelStopLimit,
+            ScenarioOp::LimitTaker,
+            ScenarioOp::Market,
         }};
 
         const std::vector<ScenarioOp>& mixed_order_schedule() {
             static const std::vector<ScenarioOp> schedule = [] {
                 std::vector<ScenarioOp> out;
-                out.reserve(1001);
+                out.reserve(1000);
                 for (const auto& [op, weight] : kOrderMix) {
                     for (size_t i = 0; i < weight; ++i) {
                         out.push_back(op);
@@ -148,6 +167,25 @@ namespace jolt::client {
             default:
                 return op;
             }
+        }
+
+        bool pick_coverage_op(size_t limit_ct,
+                              size_t stop_ct,
+                              size_t stop_limit_ct,
+                              const std::array<bool, kScenarioOpCount>& covered,
+                              ScenarioOp& out) {
+            for (const ScenarioOp desired : kCoverageOrder) {
+                if (covered[op_index(desired)]) {
+                    continue;
+                }
+                if (op_has_liquidity(desired, limit_ct, stop_ct, stop_limit_ct)) {
+                    out = desired;
+                    return true;
+                }
+                out = fallback_new_op(desired);
+                return true;
+            }
+            return false;
         }
 
         ScenarioOp pick_op(std::mt19937_64& rng,
@@ -287,6 +325,8 @@ namespace jolt::client {
         const uint64_t step = cfg_.price_step == 0 ? 1 : cfg_.price_step;
         uint64_t local_orders_sent = 0;
         uint64_t local_responses_recv = 0;
+        std::array<bool, kScenarioOpCount> covered_ops{};
+        const bool enforce_mix_coverage = !cfg_.use_market_orders;
 
         auto send_msg = [&](std::string_view msg) -> bool {
             if (msg.empty() || !fix_.send_raw(msg)) {
@@ -361,49 +401,61 @@ namespace jolt::client {
             const bool is_buy = ((rng_() & 1ULL) == 0ULL);
             const std::string& symbol = cfg_.symbols[static_cast<size_t>(rng_() % cfg_.symbols.size())];
 
-            const ScenarioOp op = pick_op(
-                rng_,
-                schedule,
-                active_limits.size(),
-                active_stops.size(),
-                active_stop_limits.size(),
-                static_cast<size_t>(target_limit_per_client_),
-                static_cast<size_t>(target_stop_per_client_),
-                cfg_.use_market_orders);
+            ScenarioOp op{};
+            if (!pick_coverage_op(active_limits.size(),
+                                  active_stops.size(),
+                                  active_stop_limits.size(),
+                                  covered_ops,
+                                  op) ||
+                !enforce_mix_coverage) {
+                op = pick_op(
+                    rng_,
+                    schedule,
+                    active_limits.size(),
+                    active_stops.size(),
+                    active_stop_limits.size(),
+                    static_cast<size_t>(target_limit_per_client_),
+                    static_cast<size_t>(target_stop_per_client_),
+                    cfg_.use_market_orders);
+            }
 
             const std::string cl_ord_id = id_ + "_" + fix_.next_cl_ord_id();
+            ScenarioOp emitted_op = op;
+            bool sent = false;
 
             switch (op) {
             case ScenarioOp::Limit: {
-                (void)submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
+                sent = submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
                 break;
             }
             case ScenarioOp::Stop: {
-                (void)submit_stop(center_px, cl_ord_id, symbol, is_buy);
+                sent = submit_stop(center_px, cl_ord_id, symbol, is_buy);
                 break;
             }
             case ScenarioOp::StopLimit: {
-                (void)submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
+                sent = submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
                 break;
             }
             case ScenarioOp::LimitTaker: {
                 const uint64_t px = clamp_price(taker_limit_px(center_px, is_buy, step));
-                (void)send_msg(fix_.build_new_order_limit(cl_ord_id, symbol, is_buy, cfg_.qty, px, 3));
+                sent = send_msg(fix_.build_new_order_limit(cl_ord_id, symbol, is_buy, cfg_.qty, px, 3));
                 break;
             }
             case ScenarioOp::Market: {
-                (void)send_msg(fix_.build_new_order_market(cl_ord_id, symbol, is_buy, cfg_.qty, 3));
+                sent = send_msg(fix_.build_new_order_market(cl_ord_id, symbol, is_buy, cfg_.qty, 3));
                 break;
             }
             case ScenarioOp::ModifyLimit: {
                 if (active_limits.empty()) {
-                    (void)submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::Limit;
+                    sent = submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
                 auto& ord = active_limits[static_cast<size_t>(rng_() % active_limits.size())];
                 const uint64_t new_px = clamp_price(passive_limit_px(center_px, ord.is_buy, step));
                 const uint64_t new_qty = ord.qty + 1;
-                if (send_msg(fix_.build_replace(cl_ord_id, ord.cl_ord_id, ord.symbol, ord.is_buy, new_qty, new_px, 1))) {
+                sent = send_msg(fix_.build_replace(cl_ord_id, ord.cl_ord_id, ord.symbol, ord.is_buy, new_qty, new_px, 1));
+                if (sent) {
                     ord.cl_ord_id = cl_ord_id;
                     ord.limit_px = new_px;
                     ord.qty = new_qty;
@@ -412,13 +464,15 @@ namespace jolt::client {
             }
             case ScenarioOp::ModifyStop: {
                 if (active_stops.empty()) {
-                    (void)submit_stop(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::Stop;
+                    sent = submit_stop(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
                 auto& ord = active_stops[static_cast<size_t>(rng_() % active_stops.size())];
                 const uint64_t new_stop = clamp_price(stop_trigger_px(center_px, ord.is_buy, step));
                 const uint64_t new_qty = ord.qty + 1;
-                if (send_msg(fix_.build_replace_stop(cl_ord_id, ord.cl_ord_id, ord.symbol, ord.is_buy, new_qty, new_stop, 1))) {
+                sent = send_msg(fix_.build_replace_stop(cl_ord_id, ord.cl_ord_id, ord.symbol, ord.is_buy, new_qty, new_stop, 1));
+                if (sent) {
                     ord.cl_ord_id = cl_ord_id;
                     ord.stop_px = new_stop;
                     ord.qty = new_qty;
@@ -427,14 +481,15 @@ namespace jolt::client {
             }
             case ScenarioOp::ModifyStopLimit: {
                 if (active_stop_limits.empty()) {
-                    (void)submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::StopLimit;
+                    sent = submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
                 auto& ord = active_stop_limits[static_cast<size_t>(rng_() % active_stop_limits.size())];
                 const uint64_t new_stop = clamp_price(stop_trigger_px(center_px, ord.is_buy, step));
                 const uint64_t new_limit = clamp_price(stop_limit_px(new_stop, ord.is_buy, step));
                 const uint64_t new_qty = ord.qty + 1;
-                if (send_msg(fix_.build_replace_stop_limit(
+                sent = send_msg(fix_.build_replace_stop_limit(
                         cl_ord_id,
                         ord.cl_ord_id,
                         ord.symbol,
@@ -442,7 +497,8 @@ namespace jolt::client {
                         new_qty,
                         new_stop,
                         new_limit,
-                        1))) {
+                        1));
+                if (sent) {
                     ord.cl_ord_id = cl_ord_id;
                     ord.stop_px = new_stop;
                     ord.limit_px = new_limit;
@@ -452,28 +508,35 @@ namespace jolt::client {
             }
             case ScenarioOp::CancelLimit: {
                 if (active_limits.empty()) {
-                    (void)submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::Limit;
+                    sent = submit_passive_limit(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
-                (void)cancel_random_active(active_limits, cl_ord_id);
+                sent = cancel_random_active(active_limits, cl_ord_id);
                 break;
             }
             case ScenarioOp::CancelStop: {
                 if (active_stops.empty()) {
-                    (void)submit_stop(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::Stop;
+                    sent = submit_stop(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
-                (void)cancel_random_active(active_stops, cl_ord_id);
+                sent = cancel_random_active(active_stops, cl_ord_id);
                 break;
             }
             case ScenarioOp::CancelStopLimit: {
                 if (active_stop_limits.empty()) {
-                    (void)submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
+                    emitted_op = ScenarioOp::StopLimit;
+                    sent = submit_stop_limit(center_px, cl_ord_id, symbol, is_buy);
                     break;
                 }
-                (void)cancel_random_active(active_stop_limits, cl_ord_id);
+                sent = cancel_random_active(active_stop_limits, cl_ord_id);
                 break;
             }
+            }
+
+            if (sent) {
+                covered_ops[op_index(emitted_op)] = true;
             }
 
             const bool should_poll_now =

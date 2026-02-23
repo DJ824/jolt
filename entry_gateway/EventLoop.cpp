@@ -96,15 +96,17 @@ namespace jolt::gateway {
     }
 
     void EventLoop::poll_once(int timeout_ms) {
-        while (auto msg = gateway_->outbound_.dequeue()) {
+        for (FixMessage* msg = gateway_->outbound_.front(); msg != nullptr; msg = gateway_->outbound_.front()) {
 
             const auto id = msg->session_id;
             // auto session = lookup(id);
             if (id >= active_sessions_.size()) {
+                gateway_->outbound_.pop();
                 continue;
             }
             auto session = active_sessions_[id].get();
             if (!session || session->closed_) {
+                gateway_->outbound_.pop();
                 continue;
             }
             const int fd = session->fd_;
@@ -116,9 +118,11 @@ namespace jolt::gateway {
                           << " fd=" << fd << "\n";
                 session->close();
                 remove_session(id, fd);
+                gateway_->outbound_.pop();
                 continue;
             }
 
+            gateway_->outbound_.pop();
         }
 
         const int n = epoll_wait(epoll_fd_, events_.data(), events_.size(), timeout_ms);

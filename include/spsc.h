@@ -146,6 +146,27 @@ public:
         return true;
     }
 
+    template <typename WriterFn>
+    bool enqueue_inplace(WriterFn&& writer) {
+        const size_t curr_tail = tail_.load(std::memory_order_relaxed);
+        const size_t next_tail = (curr_tail + 1) & MASK;
+
+        if (next_tail == head_cache_) [[unlikely]] {
+            head_cache_ = head_.load(std::memory_order_acquire);
+            if (next_tail == head_cache_) {
+                return false;
+            }
+        }
+
+        T* slot = get_slot(curr_tail);
+        if constexpr (!std::is_trivially_default_constructible_v<T>) {
+            new (slot) T();
+        }
+        writer(*slot);
+        tail_.store(next_tail, std::memory_order_release);
+        return true;
+    }
+
     T* front() {
         const size_t curr_head = head_.load(std::memory_order_relaxed);
         if (curr_head == tail_cache_) [[unlikely]] {
@@ -168,6 +189,25 @@ public:
         head_.store((curr_head + 1) & MASK, std::memory_order_release);
     }
 
+    bool try_dequeue(T& out) {
+        const size_t curr_head = head_.load(std::memory_order_relaxed);
+        if (curr_head == tail_cache_) [[unlikely]] {
+            tail_cache_ = tail_.load(std::memory_order_acquire);
+            if (curr_head == tail_cache_) {
+                return false;
+            }
+        }
+
+        T* item_ptr = get_slot(curr_head);
+        out = std::move(*item_ptr);
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            item_ptr->~T();
+        }
+
+        head_.store((curr_head + 1) & MASK, std::memory_order_release);
+        return true;
+    }
+
     std::optional<T> dequeue() {
         const size_t curr_head = head_.load(std::memory_order_relaxed);
         if (curr_head == tail_cache_) [[unlikely]] {
@@ -184,6 +224,9 @@ public:
         }
 
         head_.store((curr_head + 1) & MASK, std::memory_order_release);
+        if (!result) {
+            return std::nullopt;
+        }
         return result;
     }
 

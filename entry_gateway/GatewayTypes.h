@@ -14,6 +14,8 @@ namespace jolt {
     using ExchToGtwy = SharedSpscQueue<ExchToGtwyMsg, 1 << 20>;
 
     static constexpr size_t kFixMaxMsg = 1024;
+    static constexpr size_t kOrderStateTextMaxLen = 64;
+    static constexpr size_t kOrderStateTextBufLen = kOrderStateTextMaxLen + 1;
 
     enum class State : uint8_t {PendingNew = 0, New = 1, PendingCancel = 2, Cancelled = 3, PendingReplace = 4, Replaced = 5, Filled = 6, Rejected = 7};
 
@@ -25,9 +27,9 @@ namespace jolt {
 
     struct OrderState {
         ob::OrderAction action{ob::OrderAction::New};
-        std::string cl_ord_id;
-        std::string orig_cl_ord_id;
-        std::string symbol;
+        std::array<char, kOrderStateTextBufLen> cl_ord_id{};
+        std::array<char, kOrderStateTextBufLen> orig_cl_ord_id{};
+        std::array<char, kOrderStateTextBufLen> symbol{};
         uint64_t order_id{0};
         ob::OrderParams params{};
         uint64_t session_id{0};

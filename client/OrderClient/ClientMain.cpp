@@ -5,17 +5,23 @@
 #include "OrderClient.h"
 
 #include <atomic>
+#include <cerrno>
 #include <chrono>
+#include <cstring>
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <pthread.h>
+#include <sched.h>
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 
 namespace {
     using Config = jolt::client::ClientConfig;
+    constexpr size_t kWorkerCoreStart = 2;
 
     enum class ParseResult : uint8_t {
         Ok = 0,
@@ -42,6 +48,29 @@ namespace {
         std::istringstream iss(s);
         iss >> out;
         return !iss.fail() && iss.eof();
+    }
+
+    size_t online_cpu_count() {
+#if defined(_SC_NPROCESSORS_ONLN)
+        const long v = ::sysconf(_SC_NPROCESSORS_ONLN);
+        if (v > 0) {
+            return static_cast<size_t>(v);
+        }
+#endif
+        const unsigned int hc = std::thread::hardware_concurrency();
+        return hc > 0 ? static_cast<size_t>(hc) : 0;
+    }
+
+    bool pin_current_thread_to_core(const size_t core_id, std::string& error) {
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(core_id, &cpuset);
+        const int rc = ::pthread_setaffinity_np(::pthread_self(), sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+            error = std::strerror(rc);
+            return false;
+        }
+        return true;
     }
 
     std::vector<std::string> split_csv(const std::string& csv) {
@@ -285,6 +314,16 @@ int main(int argc, char** argv) {
     };
 
     const auto start = std::chrono::steady_clock::now();
+    const size_t cpu_count = online_cpu_count();
+    const size_t pinnable_workers = cpu_count > kWorkerCoreStart ? (cpu_count - kWorkerCoreStart) : 0;
+    if (pinnable_workers == 0) {
+        std::cerr << "[client] warn: no CPU cores available at/after core " << kWorkerCoreStart
+                  << "; worker threads will run without pinning\n";
+    } else if (cfg.clients > pinnable_workers) {
+        std::cerr << "[client] warn: clients=" << cfg.clients
+                  << " exceeds pinnable cores from core " << kWorkerCoreStart
+                  << " (" << pinnable_workers << "); extra workers will run without pinning\n";
+    }
 
     std::vector<std::thread> workers;
     workers.reserve(cfg.clients);
@@ -294,6 +333,16 @@ int main(int argc, char** argv) {
 
     for (size_t client_idx = 0; client_idx < cfg.clients; ++client_idx) {
         workers.emplace_back([&, client_idx] {
+            if (client_idx < pinnable_workers) {
+                const size_t core_id = kWorkerCoreStart + client_idx;
+                std::string pin_error;
+                if (!pin_current_thread_to_core(core_id, pin_error)) {
+                    std::cerr << "[client] warn: failed to pin client_idx=" << client_idx
+                              << " to core=" << core_id << " error=\"" << pin_error
+                              << "\"; continuing unpinned\n";
+                }
+            }
+
             const uint64_t orders_for_client = base_orders + (client_idx < extra_orders ? 1 : 0);
             jolt::client::OrderClient client(
                 client_idx,

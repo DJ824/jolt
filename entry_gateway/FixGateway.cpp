@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <bitset>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -22,9 +23,28 @@
 
 namespace {
     constexpr char kFixDelim = '\x01';
+    constexpr size_t kFixTrackedTagCount = 500;
+
+    template <size_t N>
+    std::string_view fixed_field_view(const std::array<char, N>& field) {
+        return std::string_view(field.data(), ::strnlen(field.data(), field.size()));
+    }
+
+    template <size_t N>
+    bool set_fixed_field(std::array<char, N>& field, std::string_view value) {
+        if (value.size() + 1 > N) {
+            return false;
+        }
+        field.fill('\0');
+        if (!value.empty()) {
+            std::memcpy(field.data(), value.data(), value.size());
+        }
+        return true;
+    }
 
     struct FixMsg {
-        std::unordered_map<int, std::string_view> fields{};
+        std::array<std::string_view, kFixTrackedTagCount> fields{};
+        std::bitset<kFixTrackedTagCount> present{};
         char delim{kFixDelim};
     };
 
@@ -185,7 +205,7 @@ namespace {
     }
 
     bool parse_fix_message(std::string_view msg, FixMsg& out) {
-        out.fields.clear();
+        out.present.reset();
         char delim = kFixDelim;
 
         if (msg.find(kFixDelim) == std::string_view::npos && msg.find('|') != std::string_view::npos) {
@@ -214,7 +234,10 @@ namespace {
                 value_end = msg.size();
             }
 
-            out.fields[tag] = msg.substr(value_start, value_end - value_start);
+            if (tag >= 0 && static_cast<size_t>(tag) < kFixTrackedTagCount) {
+                out.fields[static_cast<size_t>(tag)] = msg.substr(value_start, value_end - value_start);
+                out.present.set(static_cast<size_t>(tag));
+            }
             pos = value_end + 1;
         }
         return true;
@@ -256,7 +279,7 @@ namespace {
 
 
     static bool parse_fix_simd(std::string_view msg, FixMsg& out) {
-        out.fields.clear();
+        out.present.reset();
         char delim = kFixDelim;
 
         if (msg.find(kFixDelim) == std::string_view::npos && msg.find('|') != std::string_view::npos) {
@@ -288,7 +311,10 @@ namespace {
             }
 
             std::string_view value_view(base + eq_pos + 1, field_end - (eq_pos + 1));
-            out.fields.insert({tag, value_view});
+            if (tag < kFixTrackedTagCount) {
+                out.fields[static_cast<size_t>(tag)] = value_view;
+                out.present.set(static_cast<size_t>(tag));
+            }
             field_start = field_end + 1;
             eq_pos = npos;
             return true;
@@ -434,11 +460,14 @@ namespace {
 
 
     std::string_view get_tag(const FixMsg& msg, int tag) {
-        auto it = msg.fields.find(tag);
-        if (it == msg.fields.end()) {
+        if (tag < 0 || static_cast<size_t>(tag) >= kFixTrackedTagCount) {
             return {};
         }
-        return it->second;
+        const size_t index = static_cast<size_t>(tag);
+        if (!msg.present.test(index)) {
+            return {};
+        }
+        return msg.fields[index];
     }
 
     std::string_view fix_ord_type(jolt::ob::OrderType type) {
@@ -681,11 +710,15 @@ namespace jolt::gateway {
         if (!append_field(body, 39, ord_status)) {
             return false;
         }
-        if (!append_field(body, 11, state.cl_ord_id)) {
+        const std::string_view cl_ord_id = fixed_field_view(state.cl_ord_id);
+        const std::string_view orig_cl_ord_id = fixed_field_view(state.orig_cl_ord_id);
+        const std::string_view symbol = fixed_field_view(state.symbol);
+
+        if (!append_field(body, 11, cl_ord_id)) {
             return false;
         }
-        if (!state.orig_cl_ord_id.empty()) {
-            if (!append_field(body, 41, state.orig_cl_ord_id)) {
+        if (!orig_cl_ord_id.empty()) {
+            if (!append_field(body, 41, orig_cl_ord_id)) {
                 return false;
             }
         }
@@ -737,8 +770,8 @@ namespace jolt::gateway {
                 return false;
             }
         }
-        if (!state.symbol.empty()) {
-            if (!append_field(body, 55, state.symbol)) {
+        if (!symbol.empty()) {
+            if (!append_field(body, 55, symbol)) {
                 return false;
             }
         }
@@ -915,11 +948,25 @@ namespace jolt::gateway {
                 " payload=\"" + payload_preview_for_log(message) + "\"");
             return false;
         }
+        if (cl_ord_id.size() > kOrderStateTextMaxLen) {
+            log_error("[gtwy] gateway received order with too-long ClOrdID client_id=" + std::to_string(client_id) +
+                " session=" + std::to_string(session_id) +
+                " cl_ord_id_len=" + std::to_string(cl_ord_id.size()) +
+                " max_len=" + std::to_string(kOrderStateTextMaxLen));
+            return false;
+        }
 
         auto orig_cl_ord_id = get_tag(msg, 41);
 
         if (orig_cl_ord_id.empty()) {
             orig_cl_ord_id = cl_ord_id;
+        }
+        if (orig_cl_ord_id.size() > kOrderStateTextMaxLen) {
+            log_error("[gtwy] gateway received order with too-long OrigClOrdID client_id=" + std::to_string(client_id) +
+                " session=" + std::to_string(session_id) +
+                " orig_cl_ord_id_len=" + std::to_string(orig_cl_ord_id.size()) +
+                " max_len=" + std::to_string(kOrderStateTextMaxLen));
+            return false;
         }
 
         if (msg_type.size() != 1) {
@@ -946,7 +993,6 @@ namespace jolt::gateway {
             state->session_id = session_id;
             state->params.action = ob::OrderAction::New;
             state->action = ob::OrderAction::New;
-            state->cl_ord_id = std::string(cl_ord_id);
             order_states_[std::string(orig_cl_ord_id)] = state;
             state->order_id = next_order_id_++;
             state->params.id = state->order_id;
@@ -1000,16 +1046,36 @@ namespace jolt::gateway {
             return false;
         }
 
-        state->cl_ord_id = std::string(cl_ord_id);
+        if (!set_fixed_field(state->cl_ord_id, cl_ord_id)) {
+            log_error("[gtwy] gateway failed storing ClOrdID due to length order_id=" +
+                std::to_string(state->params.id) +
+                " client_id=" + std::to_string(state->params.client_id) +
+                " session=" + std::to_string(session_id));
+            return false;
+        }
 
         if (!orig_cl_ord_id.empty()) {
-            state->orig_cl_ord_id = std::string(orig_cl_ord_id);
+            if (!set_fixed_field(state->orig_cl_ord_id, orig_cl_ord_id)) {
+                log_error("[gtwy] gateway failed storing OrigClOrdID due to length order_id=" +
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
         }
 
         state->params.id = state->order_id;
 
         auto symbol = get_tag(msg, 55);
         if (!symbol.empty()) {
+            if (symbol.size() > kOrderStateTextMaxLen) {
+                log_error("[gtwy] gateway received order with too-long Symbol tag55 client_id=" +
+                    std::to_string(client_id) +
+                    " session=" + std::to_string(session_id) +
+                    " symbol_len=" + std::to_string(symbol.size()) +
+                    " max_len=" + std::to_string(kOrderStateTextMaxLen));
+                return false;
+            }
             uint16_t symbol_id = 0;
             if (!parse_symbol_id(symbol, symbol_id)) {
                 log_error("[gtwy] gateway failed parsing symbol tag55 value=" + std::string(symbol) +
@@ -1019,7 +1085,13 @@ namespace jolt::gateway {
                 return false;
             }
             state->params.symbol_id = symbol_id;
-            state->symbol = std::string(symbol);
+            if (!set_fixed_field(state->symbol, symbol)) {
+                log_error("[gtwy] gateway failed storing symbol tag55 due to length order_id=" +
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
         }
         else if (state->params.action == ob::OrderAction::New) {
             log_error("[gtwy] gateway new order missing symbol tag55 order_id=" + std::to_string(state->params.id) +
@@ -1225,17 +1297,18 @@ namespace jolt::gateway {
     }
 
     void FixGateway::poll_exchange() {
-        while (auto msg = exch_gtwy_.dequeue()) {
+        ExchToGtwyMsg msg{};
+        while (exch_gtwy_.try_dequeue(msg)) {
             log_info("[gtwy] gateway received response from exchange type=" +
-                std::string(exchange_msg_type_text(msg->type)) +
-                " order_id=" + std::to_string(msg->order_id) +
-                " client_id=" + std::to_string(msg->client_id));
-            handle_exchange_msg(*msg);
+                std::string(exchange_msg_type_text(msg.type)) +
+                " order_id=" + std::to_string(msg.order_id) +
+                " client_id=" + std::to_string(msg.client_id));
+            handle_exchange_msg(msg);
         }
     }
 
     void FixGateway::poll_io() {
-        while (auto msg = inbound_.dequeue()) {
+        for (FixMessage* msg = inbound_.front(); msg != nullptr; msg = inbound_.front()) {
             if (msg->len == 0) {
                 const uint64_t disconnected_session_id = msg->session_id;
                 if (disconnected_session_id < sessions_.size()) {
@@ -1259,12 +1332,14 @@ namespace jolt::gateway {
                         state->session_id = UINT64_MAX;
                     }
                 }
+                inbound_.pop();
                 continue;
             }
             if (!on_fix_message({msg->data.data(), msg->len}, msg->session_id)) {
                 log_error("[gtwy] gateway failed handling inbound FIX from client session=" +
-                    std::to_string(msg->session_id));
+                          std::to_string(msg->session_id));
             }
+            inbound_.pop();
         }
     }
 
