@@ -15,6 +15,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <thread>
 #include <utility>
 #include <immintrin.h>
 #include <iostream>
@@ -550,7 +551,7 @@ namespace {
 }
 
 static int make_listen_socket(uint16_t port) {
-    int fd = ::socket(AF_INET6, SOCK_STREAM, 0);
+    int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         return -1;
     }
@@ -558,10 +559,10 @@ static int make_listen_socket(uint16_t port) {
     int yes = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-    sockaddr_in6 addr{};
-    addr.sin6_family = AF_INET6;
-    addr.sin6_addr = in6addr_any;
-    addr.sin6_port = htons(port);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
 
     if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         ::close(fd);
@@ -627,10 +628,16 @@ namespace jolt::gateway {
     }
 
     void FixGateway::start() {
+        running_.store(true, std::memory_order_release);
         event_loop_.start();
+        exchange_rx_thread_ = std::thread(&FixGateway::exchange_rx_loop, this);
     }
 
     void FixGateway::stop() {
+        running_.store(false, std::memory_order_release);
+        if (exchange_rx_thread_.joinable()) {
+            exchange_rx_thread_.join();
+        }
         event_loop_.stop();
     }
 
@@ -928,7 +935,6 @@ namespace jolt::gateway {
             throw std::runtime_error("[gtwy] failed to build logon msg");
         }
 
-        // Only D/F/G are order flow. Ignore session-level traffic here.
         if (!is_client_order_msg_type(msg_type)) {
             if (msg_type == "0" || msg_type == "1" || msg_type == "5") {
                 return true;
@@ -1291,55 +1297,59 @@ namespace jolt::gateway {
     }
 
 
-    void FixGateway::poll() {
-        poll_io();
-        poll_exchange();
-    }
 
-    void FixGateway::poll_exchange() {
-        ExchToGtwyMsg msg{};
-        while (exch_gtwy_.try_dequeue(msg)) {
-            log_info("[gtwy] gateway received response from exchange type=" +
-                std::string(exchange_msg_type_text(msg.type)) +
-                " order_id=" + std::to_string(msg.order_id) +
-                " client_id=" + std::to_string(msg.client_id));
-            handle_exchange_msg(msg);
+    void FixGateway::exchange_rx_loop() {
+        while (running_.load(std::memory_order_acquire)) {
+            ExchToGtwyMsg msg{};
+            bool had_work = false;
+            while (exch_gtwy_.try_dequeue(msg)) {
+                had_work = true;
+                while (!exchange_events_.enqueue(msg)) {
+                    if (!running_.load(std::memory_order_acquire)) {
+                        return;
+                    }
+                    std::this_thread::yield();
+                }
+                event_loop_.notify();
+            }
+            if (!had_work) {
+                std::this_thread::yield();
+            }
         }
     }
 
-    void FixGateway::poll_io() {
-        for (FixMessage* msg = inbound_.front(); msg != nullptr; msg = inbound_.front()) {
-            if (msg->len == 0) {
-                const uint64_t disconnected_session_id = msg->session_id;
-                if (disconnected_session_id < sessions_.size()) {
-                    auto& session = sessions_[disconnected_session_id];
-                    session.logged_on = false;
-                    session.initialized = false;
-                }
-                for (auto& [_, client] : clients_) {
-                    if (!client) {
-                        continue;
-                    }
-                    if (client->get_session_id() == disconnected_session_id) {
-                        client->set_session_id(UINT64_MAX);
-                    }
-                }
-                for (auto& [_, state] : order_id_to_state_) {
-                    if (!state) {
-                        continue;
-                    }
-                    if (state->session_id == disconnected_session_id) {
-                        state->session_id = UINT64_MAX;
-                    }
-                }
-                inbound_.pop();
+    void FixGateway::drain_exchange_events() {
+        for (ExchToGtwyMsg* msg = exchange_events_.front(); msg != nullptr; msg = exchange_events_.front()) {
+            log_info("[gtwy] gateway received response from exchange type=" +
+                std::string(exchange_msg_type_text(msg->type)) +
+                " order_id=" + std::to_string(msg->order_id) +
+                " client_id=" + std::to_string(msg->client_id));
+            handle_exchange_msg(*msg);
+            exchange_events_.pop();
+        }
+    }
+
+    void FixGateway::on_disconnect(const uint64_t disconnected_session_id) {
+        if (disconnected_session_id < sessions_.size()) {
+            auto& session = sessions_[disconnected_session_id];
+            session.logged_on = false;
+            session.initialized = false;
+        }
+        for (auto& [_, client] : clients_) {
+            if (!client) {
                 continue;
             }
-            if (!on_fix_message({msg->data.data(), msg->len}, msg->session_id)) {
-                log_error("[gtwy] gateway failed handling inbound FIX from client session=" +
-                          std::to_string(msg->session_id));
+            if (client->get_session_id() == disconnected_session_id) {
+                client->set_session_id(UINT64_MAX);
             }
-            inbound_.pop();
+        }
+        for (auto& [_, state] : order_id_to_state_) {
+            if (!state) {
+                continue;
+            }
+            if (state->session_id == disconnected_session_id) {
+                state->session_id = UINT64_MAX;
+            }
         }
     }
 
@@ -1478,8 +1488,8 @@ namespace jolt::gateway {
             !sessions_[msg.session_id].initialized) {
             return;
         }
-        if (!outbound_.enqueue(msg)) {
-            log_error("[gtwy] gateway outbound queue full while routing response session=" +
+        if (!event_loop_.enqueue_outbound(msg)) {
+            log_error("[gtwy] gateway failed routing response to session=" +
                 std::to_string(msg.session_id));
         }
     }

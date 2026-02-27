@@ -1,7 +1,9 @@
 #pragma once
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <sys/epoll.h>
@@ -24,6 +26,8 @@ namespace jolt::gateway {
         void set_gateway(FixGateway* gateway);
         void remove_session(uint64_t id, int fd);
         void poll_once(int timeout_ms);
+        bool enqueue_outbound(const FixMessage& msg);
+        void notify();
         void run();
         void stop();
         void start();
@@ -37,6 +41,7 @@ namespace jolt::gateway {
         std::atomic<bool> running_{false};
         int epoll_fd_{-1};
         int listen_fd_{-1};
+        int wake_fd_{-1};
         FixGateway* gateway_{nullptr};
         std::vector<std::unique_ptr<FixSession>> active_sessions_;
         std::vector<epoll_event> events_{};

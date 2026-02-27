@@ -76,14 +76,8 @@ namespace jolt::gateway {
             rx_len_ = 0;
             rx_off_ = 0;
             tx_off_ = 0;
-
-
-            FixMessage disconnect{};
-            disconnect.len = 0;
-            disconnect.session_id = session_id_;
-            if (!gateway_->inbound_.enqueue(disconnect)) {
-                log_error("[gtwy] gateway inbound queue full while enqueueing disconnect event session=" +
-                          std::to_string(session_id_));
+            if (gateway_) {
+                gateway_->on_disconnect(session_id_);
             }
         }
     }
@@ -128,14 +122,9 @@ namespace jolt::gateway {
             if (msg.size() > kFixMaxMsg) {
                 continue;
             }
-            FixMessage fix_msg{};
-            memcpy(fix_msg.data.data(), msg.data(), msg.size());
-            fix_msg.len = msg.size();
-            fix_msg.session_id = session_id_;
-            if (!gateway_->inbound_.enqueue(fix_msg)) {
-                log_error("[gtwy] gateway inbound queue full while reading client FIX session=" +
+            if (!gateway_ || !gateway_->on_fix_message(msg, session_id_)) {
+                log_error("[gtwy] gateway failed handling inbound FIX from client session=" +
                           std::to_string(session_id_));
-                return;
             }
         }
     }

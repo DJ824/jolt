@@ -3,20 +3,27 @@
 //
 
 #include "EventLoop.h"
+
 #include <cerrno>
+#include <cstdint>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/eventfd.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include "Client.h"
 #include "FixGateway.h"
 
 namespace jolt::gateway {
-
-    static constexpr uint64_t listen_id = 1ull << 63;
+    namespace {
+        constexpr uint64_t kListenId = 1ull << 63;
+        constexpr uint64_t kWakeupId = (1ull << 63) - 1;
+    }
 
     EventLoop::EventLoop(int listen_fd) {
         listen_fd_ = listen_fd;
@@ -25,12 +32,24 @@ namespace jolt::gateway {
             throw std::runtime_error("epoll_create1() failed");
         }
 
-        epoll_event ev;
-        ev.events = EPOLLIN;
-        ev.data.u64 = listen_id;
-        if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listen_fd_, &ev) < 0) {
-            throw std::runtime_error("epoll_ctl() failed");
+        wake_fd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        if (wake_fd_ < 0) {
+            throw std::runtime_error("eventfd() failed");
         }
+
+        epoll_event ev{};
+        ev.events = EPOLLIN;
+        ev.data.u64 = kListenId;
+        if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listen_fd_, &ev) < 0) {
+            throw std::runtime_error("epoll_ctl() failed for listen socket");
+        }
+
+        ev.events = EPOLLIN;
+        ev.data.u64 = kWakeupId;
+        if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, wake_fd_, &ev) < 0) {
+            throw std::runtime_error("epoll_ctl() failed for wake fd");
+        }
+
         events_.resize(8192);
         active_sessions_.resize(1);
     }
@@ -41,9 +60,10 @@ namespace jolt::gateway {
 
     void EventLoop::accept_sessions() {
         for (;;) {
-            sockaddr_in6 addr{};
+            sockaddr_in addr{};
             socklen_t len = sizeof(addr);
-            int session_fd = accept4(listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+            const int session_fd = accept4(
+                listen_fd_, reinterpret_cast<sockaddr*>(&addr), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
             if (session_fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     break;
@@ -65,67 +85,70 @@ namespace jolt::gateway {
                 std::cerr << "[event_loop] failed to set SO_SNDBUF on session fd=" << session_fd << "\n";
             }
 
-            epoll_event ev;
-            ev.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
-
             const uint32_t id = ++session_id_assign_;
             if (id > std::numeric_limits<uint32_t>::max()) {
                 ::close(session_fd);
                 continue;
             }
 
-            auto session = std::make_unique<FixSession>("0","0", session_fd);
+            auto session = std::make_unique<FixSession>("0", "0", session_fd);
             session.get()->gateway_ = gateway_;
             session.get()->session_id_ = id;
-            // sessions_.emplace(session_id_assign_, std::move(session));
+
             if (id >= active_sessions_.size()) {
                 active_sessions_.resize(id + 1);
             }
             active_sessions_[id] = std::move(session);
 
+            epoll_event ev{};
+            ev.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
             ev.data.u64 = id;
             if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, session_fd, &ev) < 0) {
                 std::cerr << "[event_loop] failed adding accepted session to epoll id=" << id
                           << " fd=" << session_fd << " errno=" << errno << "\n";
                 ::close(session_fd);
                 active_sessions_[id] = nullptr;
-                continue;
             }
+        }
+    }
 
+    bool EventLoop::enqueue_outbound(const FixMessage& msg) {
+        const uint64_t id = msg.session_id;
+        if (id >= active_sessions_.size()) {
+            return false;
+        }
+
+        auto* session = active_sessions_[id].get();
+        if (!session || session->closed_) {
+            return false;
+        }
+
+        const int fd = session->fd_;
+        session->queue_message({msg.data.data(), msg.len});
+        if (!update_interest(session, fd, id, true)) {
+            std::cerr << "[event_loop] failed enabling EPOLLOUT for session id=" << id
+                      << " fd=" << fd << "\n";
+            session->close();
+            remove_session(id, fd);
+            return false;
+        }
+
+        return true;
+    }
+
+    void EventLoop::notify() {
+        if (wake_fd_ < 0) {
+            return;
+        }
+        const uint64_t one = 1;
+        const ssize_t wrote = ::write(wake_fd_, &one, sizeof(one));
+        if (wrote < 0 && errno != EAGAIN) {
+            std::cerr << "[event_loop] wake write failed errno=" << errno << "\n";
         }
     }
 
     void EventLoop::poll_once(int timeout_ms) {
-        for (FixMessage* msg = gateway_->outbound_.front(); msg != nullptr; msg = gateway_->outbound_.front()) {
-
-            const auto id = msg->session_id;
-            // auto session = lookup(id);
-            if (id >= active_sessions_.size()) {
-                gateway_->outbound_.pop();
-                continue;
-            }
-            auto session = active_sessions_[id].get();
-            if (!session || session->closed_) {
-                gateway_->outbound_.pop();
-                continue;
-            }
-            const int fd = session->fd_;
-
-            session->queue_message({msg->data.data(), msg->len});
-
-            if (!update_interest(session, fd, id, true)) {
-                std::cerr << "[event_loop] failed enabling EPOLLOUT for session id=" << id
-                          << " fd=" << fd << "\n";
-                session->close();
-                remove_session(id, fd);
-                gateway_->outbound_.pop();
-                continue;
-            }
-
-            gateway_->outbound_.pop();
-        }
-
-        const int n = epoll_wait(epoll_fd_, events_.data(), events_.size(), timeout_ms);
+        const int n = epoll_wait(epoll_fd_, events_.data(), static_cast<int>(events_.size()), timeout_ms);
         if (n <= 0) {
             return;
         }
@@ -134,20 +157,26 @@ namespace jolt::gateway {
             const uint64_t id = events_[i].data.u64;
             const uint32_t mask = events_[i].events;
 
-            if (id == listen_id) {
+            if (id == kListenId) {
                 accept_sessions();
                 continue;
             }
 
-            // auto* session = lookup(id);
+            if (id == kWakeupId) {
+                uint64_t value = 0;
+                while (::read(wake_fd_, &value, sizeof(value)) == sizeof(value)) {
+                }
+                gateway_->drain_exchange_events();
+                continue;
+            }
 
             if (id >= active_sessions_.size()) {
                 std::cerr << "[event_loop] session id out of range: " << id << "\n";
                 continue;
             }
-            auto session = active_sessions_[id].get();
+
+            auto* session = active_sessions_[id].get();
             if (!session) {
-                std::cerr << "[event_loop] session for id " << id << " disconnected\n";
                 continue;
             }
 
@@ -182,7 +211,6 @@ namespace jolt::gateway {
             if (!update_interest(session, fd, id, session->want_write())) {
                 session->close();
                 remove_session(id, fd);
-                continue;
             }
         }
     }
@@ -191,11 +219,12 @@ namespace jolt::gateway {
         if (!session) {
             return false;
         }
+
         if (session->write_interest_enabled_ == want_write) {
             return true;
         }
 
-        epoll_event ev;
+        epoll_event ev{};
         ev.events = EPOLLIN | EPOLLRDHUP | EPOLLERR;
         if (want_write) {
             ev.events |= EPOLLOUT;
@@ -212,27 +241,26 @@ namespace jolt::gateway {
     }
 
     void EventLoop::remove_session(uint64_t id, int fd) {
-        epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, 0);
+        epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
         if (id < active_sessions_.size()) {
             active_sessions_[id] = nullptr;
         }
-
     }
 
     void EventLoop::start() {
         running_ = true;
         run_thread = std::thread(&EventLoop::run, this);
-
     }
 
     void EventLoop::run() {
         while (running_) {
-            poll_once(1);
+            poll_once(-1);
         }
     }
 
     void EventLoop::stop() {
         running_ = false;
+        notify();
         if (run_thread.joinable()) {
             run_thread.join();
         }
@@ -248,5 +276,19 @@ namespace jolt::gateway {
         return count;
     }
 
-    EventLoop::~EventLoop() {}
+    EventLoop::~EventLoop() {
+        stop();
+        if (wake_fd_ >= 0) {
+            ::close(wake_fd_);
+            wake_fd_ = -1;
+        }
+        if (epoll_fd_ >= 0) {
+            ::close(epoll_fd_);
+            epoll_fd_ = -1;
+        }
+        if (listen_fd_ >= 0) {
+            ::close(listen_fd_);
+            listen_fd_ = -1;
+        }
+    }
 }

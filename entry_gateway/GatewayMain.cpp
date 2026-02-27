@@ -78,8 +78,7 @@ int main() {
     gateway.start();
 
     while (g_run.load(std::memory_order_acquire)) {
-        gateway.poll();
-        // std::this_thread::sleep_for(std::chrono::microseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     gateway.stop();
