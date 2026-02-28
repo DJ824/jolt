@@ -68,15 +68,19 @@ namespace jolt::gateway {
     }
 
     void FixSession::close() {
-        if (!closed_) {
+        if (!closed_.exchange(true, std::memory_order_acq_rel)) {
             ::close(fd_);
             fd_ = -1;
-            closed_ = true;
             write_interest_enabled_ = false;
-            tx_buf_.clear();
+            tx_batch_head_ = 0;
+            tx_batch_size_ = 0;
+            tx_armed_.store(false, std::memory_order_release);
             rx_len_ = 0;
             rx_off_ = 0;
             tx_off_ = 0;
+            Message dropped{};
+            while (tx_queue_.try_dequeue(dropped)) {
+            }
             if (gateway_) {
                 gateway_->on_disconnect(session_id_);
             }
@@ -133,24 +137,37 @@ namespace jolt::gateway {
 
 
     bool FixSession::send_pending() {
-        constexpr int kMaxWritevIov = 16;
-        while (!tx_buf_.empty()) {
-            iovec iov[kMaxWritevIov]{};
+        while (true) {
+            while (tx_batch_size_ < kTxWritevBatch) {
+                Message next{};
+                if (!tx_queue_.try_dequeue(next)) {
+                    break;
+                }
+                tx_batch_[(tx_batch_head_ + tx_batch_size_) % kTxWritevBatch] = std::move(next);
+                ++tx_batch_size_;
+            }
+
+            if (tx_batch_size_ == 0) {
+                return true;
+            }
+
+            iovec iov[kTxWritevBatch]{};
             int iovcnt = 0;
-            size_t index = 0;
-            for (auto it = tx_buf_.begin(); it != tx_buf_.end() && iovcnt < kMaxWritevIov; ++it, ++index) {
+            for (size_t index = 0; index < tx_batch_size_ && iovcnt < static_cast<int>(kTxWritevBatch); ++index) {
+                const Message& m = tx_batch_[(tx_batch_head_ + index) % kTxWritevBatch];
                 const size_t start = (index == 0) ? tx_off_ : 0;
-                if (start >= it->len) {
+                if (start >= m.len) {
                     continue;
                 }
-                iov[iovcnt].iov_base = it->buf.data() + start;
-                iov[iovcnt].iov_len = it->len - start;
+                iov[iovcnt].iov_base = const_cast<char*>(m.buf.data() + start);
+                iov[iovcnt].iov_len = m.len - start;
                 ++iovcnt;
             }
 
             if (iovcnt == 0) {
+                tx_batch_head_ = 0;
+                tx_batch_size_ = 0;
                 tx_off_ = 0;
-                tx_buf_.clear();
                 return true;
             }
 
@@ -168,12 +185,13 @@ namespace jolt::gateway {
             }
 
             size_t consumed = static_cast<size_t>(n);
-            while (consumed > 0 && !tx_buf_.empty()) {
-                Message& front = tx_buf_.front();
+            while (consumed > 0 && tx_batch_size_ != 0) {
+                Message& front = tx_batch_[tx_batch_head_];
                 const size_t remaining = front.len - tx_off_;
                 if (consumed >= remaining) {
                     consumed -= remaining;
-                    tx_buf_.pop_front();
+                    tx_batch_head_ = (tx_batch_head_ + 1) % kTxWritevBatch;
+                    --tx_batch_size_;
                     tx_off_ = 0;
                 }
                 else {
@@ -191,7 +209,7 @@ namespace jolt::gateway {
     }
 
     bool FixSession::want_write() {
-        return !tx_buf_.empty();
+        return tx_batch_size_ != 0 || !tx_queue_.empty();
     }
 
     bool FixSession::extract_message(std::string_view& msg) {
@@ -319,13 +337,16 @@ namespace jolt::gateway {
         return true;
     }
 
-    void FixSession::queue_message(std::string_view msg) {
+    bool FixSession::queue_message(std::string_view msg) {
+        if (closed_.load(std::memory_order_acquire)) {
+            return false;
+        }
         if (msg.size() > kTxCap) {
             throw std::runtime_error("msg too big for client tx");
         }
         Message m{};
         m.len = msg.size();
         memcpy(m.buf.data(), msg.data(), m.len);
-        tx_buf_.push_back(m);
+        return tx_queue_.enqueue(std::move(m));
     }
 }

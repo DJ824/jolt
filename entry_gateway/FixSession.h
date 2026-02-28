@@ -5,11 +5,11 @@
 #ifndef JOLT_FIXSESSION_H
 #define JOLT_FIXSESSION_H
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <charconv>
 #include <cstring>
 #include <cerrno>
-#include <deque>
 #include <string>
 #include <unordered_map>
 #include <string_view>
@@ -18,11 +18,14 @@
 #include <vector>
 
 #include "GatewayTypes.h"
+#include "../include/spsc.h"
 
 
 namespace jolt::gateway {
     static constexpr size_t kRxCap = 8192;
     static constexpr size_t kTxCap = 1024;
+    static constexpr size_t kTxQueueSlots = 8192;
+    static constexpr size_t kTxWritevBatch = 16;
 
     class Client;
     class FixGateway;
@@ -52,7 +55,7 @@ namespace jolt::gateway {
         void on_readable();
         bool send_pending();
         bool want_write();
-        void queue_message(std::string_view message);
+        bool queue_message(std::string_view message);
         void recv_pending();
 
         void send_to_gateway(FixMessage msg);
@@ -60,14 +63,18 @@ namespace jolt::gateway {
         bool extract_message(std::string_view& msg);
         bool handle_message(std::string_view& msg);
         std::array<char, kRxCap> rx_buf_;
-        std::deque<Message> tx_buf_;
+        LockFreeQueue<Message, kTxQueueSlots> tx_queue_{};
+        std::array<Message, kTxWritevBatch> tx_batch_{};
+        size_t tx_batch_head_{0};
+        size_t tx_batch_size_{0};
         size_t rx_len_{0};
         size_t rx_off_{0};
         size_t tx_off_{0};
 
         FixGateway* gateway_{nullptr};
 
-        bool closed_{false};
+        std::atomic<bool> closed_{false};
+        std::atomic<bool> tx_armed_{false};
         bool write_interest_enabled_{false};
         void close();
 

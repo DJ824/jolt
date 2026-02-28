@@ -75,9 +75,17 @@ namespace jolt::gateway {
             uint64_t received_from_client{0};
             uint64_t sent_to_client{0};
         };
+        struct GatewayTask {
+            enum class Type : uint8_t { LogonAck = 0, LocalReject = 1 };
+            Type type{Type::LogonAck};
+            uint64_t session_id{0};
+            uint64_t order_id{0};
+            ob::RejectReason reason{ob::RejectReason::NotApplicable};
+        };
 
         bool risk_check(const ClientInfo& client, const ob::OrderParams& order, ob::RejectReason& reason) const;
         void handle_exchange_msg(const ExchToGtwyMsg& msg);
+        void handle_gateway_task(const GatewayTask& task);
         void queue_fix_message(const FixMessage& msg);
         SessionState* get_or_create_session(uint64_t session_id);
         void exchange_rx_loop();
@@ -95,7 +103,7 @@ namespace jolt::gateway {
 
         GtwyToExch gtwy_exch_;
         ExchToGtwy exch_gtwy_;
-        LockFreeQueue<ExchToGtwyMsg, 1 << 20> exchange_events_;
+        LockFreeQueue<GatewayTask, 1 << 20> gateway_tasks_;
         ob::FlatMap<uint64_t, ClientInfo> client_infos_;
         ob::FlatMap<ClOrdMapKey, uint64_t, ClOrdMapKeyHash> cl_ord_id_to_order_id_;
         SlabPool<OrderState> order_state_pool_;
@@ -116,7 +124,6 @@ namespace jolt::gateway {
         bool submit_order(const ob::OrderParams& order, ob::RejectReason& reason);
         bool on_fix_message(std::string_view message, uint64_t session_id);
         void on_disconnect(uint64_t session_id);
-        void drain_exchange_events();
         void poll();
         std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
         void clear_session_for_client(uint64_t client_id);

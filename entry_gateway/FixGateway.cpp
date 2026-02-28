@@ -228,41 +228,6 @@ namespace {
         return true;
     }
 
-    std::string payload_preview_for_log(std::string_view payload) {
-        if (payload.empty()) {
-            return "<empty>";
-        }
-
-        constexpr size_t kPreviewBytes = 256;
-        constexpr char kHexDigits[] = "0123456789ABCDEF";
-        const size_t preview_len = std::min(payload.size(), kPreviewBytes);
-
-        std::string out;
-        out.reserve(preview_len * 4 + 32);
-        for (size_t i = 0; i < preview_len; ++i) {
-            const unsigned char ch = static_cast<unsigned char>(payload[i]);
-            if (ch == static_cast<unsigned char>(kFixDelim)) {
-                out.push_back('|');
-                continue;
-            }
-            if (std::isprint(ch) != 0 && ch != '\\') {
-                out.push_back(static_cast<char>(ch));
-                continue;
-            }
-
-            out += "\\x";
-            out.push_back(kHexDigits[ch >> 4]);
-            out.push_back(kHexDigits[ch & 0x0F]);
-        }
-        if (preview_len < payload.size()) {
-            out += "...(truncated,total_bytes=";
-            out += std::to_string(payload.size());
-            out += ")";
-        }
-        return out;
-    }
-
-
     static bool parse_fix_simd(std::string_view msg, FixMsg& out) {
         out.present.reset();
         char delim = kFixDelim;
@@ -524,7 +489,7 @@ namespace jolt::gateway {
           cl_ord_id_to_order_id_(2'000'000, ClOrdMapKey::empty(), ClOrdMapKey::tombstone(), 0.80f),
           event_loop_(make_listen_socket(8080)) {
         event_loop_.set_gateway(this);
-        sessions_.resize(1);
+        sessions_.resize(EventLoop::kMaxSessions + 1);
         clients_.reserve(2048);
         client_traffic_.reserve(2048);
         next_client_traffic_log_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
@@ -587,7 +552,7 @@ namespace jolt::gateway {
             return nullptr;
         }
         if (session_id >= sessions_.size()) {
-            sessions_.resize(session_id + 1);
+            return nullptr;
         }
         auto& session = sessions_[session_id];
         if (!session.initialized || session.session_id != session_id) {
@@ -900,8 +865,8 @@ namespace jolt::gateway {
     }
 
     bool FixGateway::on_fix_message(std::string_view message, uint64_t session_id) {
-        FixMsg msg{};
-        if (!parse_fix_message(message, msg)) {
+        thread_local FixMsg msg;
+        if (!parse_fix_simd(message, msg) && !parse_fix_message(message, msg)) {
             log_error("[gtwy] gateway failed to parse FIX from client session=" + std::to_string(session_id) +
                       " bytes=" + std::to_string(message.size()) +
                       " payload=\"" + payload_preview_for_log(message) + "\"");
@@ -958,14 +923,15 @@ namespace jolt::gateway {
         }
 
         if (msg_type == "A") {
-            FixMessage out{};
-            if (build_logon(out, session, 30, false)) {
-                session->logged_on = true;
-                out.session_id = session_id;
-                queue_fix_message(std::move(out));
-                return true;
+            GatewayTask task{};
+            task.type = GatewayTask::Type::LogonAck;
+            task.session_id = session_id;
+            while (running_.load(std::memory_order_acquire) && !gateway_tasks_.enqueue(task)) {
             }
-            throw std::runtime_error("[gtwy] failed to build logon msg");
+            if (!running_.load(std::memory_order_acquire)) {
+                return false;
+            }
+            return true;
         }
 
         if (!is_client_order_msg_type(msg_type)) {
@@ -1286,16 +1252,14 @@ namespace jolt::gateway {
                 " session=" + std::to_string(session_id) +
                 " action=" + std::string(order_action_text(state->params.action)) +
                 " reason=" + std::string(reject_reason_text(reason)));
-            FixMessage fix{};
-            if (!build_exec_report(fix, session, *state, next_exec_id_++, false, reason)) {
-                log_error("[gtwy] gateway failed building reject ExecReport order_id=" +
-                    std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
             state->state = State::Rejected;
-            queue_fix_message(std::move(fix));
+            GatewayTask task{};
+            task.type = GatewayTask::Type::LocalReject;
+            task.session_id = session_id;
+            task.order_id = state->params.id;
+            task.reason = reason;
+            while (running_.load(std::memory_order_acquire) && !gateway_tasks_.enqueue(task)) {
+            }
             return false;
         }
 
@@ -1304,15 +1268,13 @@ namespace jolt::gateway {
                 " client_id=" + std::to_string(state->params.client_id) +
                 " session=" + std::to_string(session_id) +
                 " reason=" + std::string(reject_reason_text(reason)));
-            FixMessage fix{};
-            if (!build_exec_report(fix, session, *state, next_exec_id_++, false, reason)) {
-                log_error("[gtwy] gateway failed building submit-failed ExecReport order_id=" +
-                    std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
+            GatewayTask task{};
+            task.type = GatewayTask::Type::LocalReject;
+            task.session_id = session_id;
+            task.order_id = state->params.id;
+            task.reason = reason;
+            while (running_.load(std::memory_order_acquire) && !gateway_tasks_.enqueue(task)) {
             }
-            queue_fix_message(std::move(fix));
             return false;
         }
 
@@ -1354,39 +1316,66 @@ namespace jolt::gateway {
 
     void FixGateway::exchange_rx_loop() {
         while (running_.load(std::memory_order_acquire)) {
-            ExchToGtwyMsg msg{};
-            bool drained_any = false;
-            while (exch_gtwy_.try_dequeue(msg)) {
-                while (running_.load(std::memory_order_acquire) && !exchange_events_.enqueue(msg)) {
-                }
-                if (!running_.load(std::memory_order_acquire)) {
-                    return;
-                }
-                drained_any = true;
+            GatewayTask task{};
+            while (gateway_tasks_.try_dequeue(task)) {
+                handle_gateway_task(task);
             }
-            if (drained_any) {
-                event_loop_.notify();
+
+            ExchToGtwyMsg msg{};
+            while (exch_gtwy_.try_dequeue(msg)) {
+                handle_exchange_msg(msg);
             }
         }
     }
 
-    void FixGateway::drain_exchange_events() {
-        for (ExchToGtwyMsg* msg = exchange_events_.front(); msg != nullptr; msg = exchange_events_.front()) {
-            log_info("[gtwy] gateway received response from exchange type=" +
-                std::string(exchange_msg_type_text(msg->type)) +
-                " order_id=" + std::to_string(msg->order_id) +
-                " client_id=" + std::to_string(msg->client_id));
-            handle_exchange_msg(*msg);
-            exchange_events_.pop();
+    void FixGateway::handle_gateway_task(const GatewayTask& task) {
+        switch (task.type) {
+        case GatewayTask::Type::LogonAck:
+            {
+                auto* session = get_or_create_session(task.session_id);
+                if (!session || !session->initialized) {
+                    return;
+                }
+                FixMessage out{};
+                if (!build_logon(out, session, 30, false)) {
+                    log_error("[gtwy] failed to build logon msg session=" + std::to_string(task.session_id));
+                    return;
+                }
+                session->logged_on = true;
+                out.session_id = task.session_id;
+                queue_fix_message(out);
+                break;
+            }
+        case GatewayTask::Type::LocalReject:
+            {
+                auto* state = order_state_pool_.get(task.order_id);
+                if (!state || state->params.id != task.order_id) {
+                    return;
+                }
+                const uint64_t sess_id = state->session_id;
+                if (sess_id == UINT64_MAX || sess_id >= sessions_.size()) {
+                    return;
+                }
+                auto* session = &sessions_[sess_id];
+                if (!session->initialized) {
+                    return;
+                }
+
+                FixMessage fix{};
+                if (!build_exec_report(fix, session, *state, next_exec_id_++, false, task.reason)) {
+                    log_error("[gtwy] gateway failed building local-reject ExecReport order_id=" +
+                        std::to_string(task.order_id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(sess_id));
+                    return;
+                }
+                queue_fix_message(fix);
+                break;
+            }
         }
     }
 
     void FixGateway::on_disconnect(const uint64_t disconnected_session_id) {
-        if (disconnected_session_id < sessions_.size()) {
-            auto& session = sessions_[disconnected_session_id];
-            session.logged_on = false;
-            session.initialized = false;
-        }
         for (auto& [_, client] : clients_) {
             if (!client) {
                 continue;

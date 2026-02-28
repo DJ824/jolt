@@ -51,7 +51,11 @@ namespace jolt::gateway {
         }
 
         events_.resize(8192);
-        active_sessions_.resize(1);
+        active_sessions_.resize(kMaxSessions + 1);
+        session_view_ = std::make_unique<std::atomic<FixSession*>[]>(kMaxSessions + 1);
+        for (size_t i = 0; i <= kMaxSessions; ++i) {
+            session_view_[i].store(nullptr, std::memory_order_relaxed);
+        }
     }
 
     void EventLoop::set_gateway(FixGateway* gateway) {
@@ -85,8 +89,8 @@ namespace jolt::gateway {
                 std::cerr << "[event_loop] failed to set SO_SNDBUF on session fd=" << session_fd << "\n";
             }
 
-            const uint32_t id = ++session_id_assign_;
-            if (id > std::numeric_limits<uint32_t>::max()) {
+            const uint64_t id = ++session_id_assign_;
+            if (id > kMaxSessions || id > std::numeric_limits<uint32_t>::max()) {
                 ::close(session_fd);
                 continue;
             }
@@ -95,9 +99,6 @@ namespace jolt::gateway {
             session.get()->gateway_ = gateway_;
             session.get()->session_id_ = id;
 
-            if (id >= active_sessions_.size()) {
-                active_sessions_.resize(id + 1);
-            }
             active_sessions_[id] = std::move(session);
 
             epoll_event ev{};
@@ -107,42 +108,70 @@ namespace jolt::gateway {
                 std::cerr << "[event_loop] failed adding accepted session to epoll id=" << id
                           << " fd=" << session_fd << " errno=" << errno << "\n";
                 ::close(session_fd);
-                active_sessions_[id] = nullptr;
+                active_sessions_[id]->closed_.store(true, std::memory_order_release);
+                active_sessions_[id]->fd_ = -1;
+                session_view_[id].store(nullptr, std::memory_order_release);
+                continue;
             }
+            session_view_[id].store(active_sessions_[id].get(), std::memory_order_release);
         }
     }
 
     bool EventLoop::enqueue_outbound(const FixMessage& msg) {
         const uint64_t id = msg.session_id;
-        if (id >= active_sessions_.size()) {
+        if (id == 0 || id > kMaxSessions) {
             return false;
         }
 
-        auto* session = active_sessions_[id].get();
-        if (!session || session->closed_) {
+        auto* session = session_view_[id].load(std::memory_order_acquire);
+        if (!session || session->closed_.load(std::memory_order_acquire)) {
             return false;
         }
 
-        const int fd = session->fd_;
-        session->queue_message({msg.data.data(), msg.len});
-        if (!update_interest(session, fd, id, true)) {
-            std::cerr << "[event_loop] failed enabling EPOLLOUT for session id=" << id
-                      << " fd=" << fd << "\n";
-            session->close();
-            remove_session(id, fd);
+        if (!session->queue_message({msg.data.data(), msg.len})) {
             return false;
         }
 
+        if (!session->tx_armed_.exchange(true, std::memory_order_acq_rel)) {
+            while (!ready_sessions_.enqueue(id)) {
+                if (session->closed_.load(std::memory_order_acquire)) {
+                    return false;
+                }
+            }
+            notify();
+        }
         return true;
+    }
+
+    void EventLoop::drain_ready_sessions() {
+        uint64_t id = 0;
+        while (ready_sessions_.try_dequeue(id)) {
+            if (id == 0 || id > kMaxSessions) {
+                continue;
+            }
+            auto* session = session_view_[id].load(std::memory_order_acquire);
+            if (!session || session->closed_.load(std::memory_order_acquire)) {
+                continue;
+            }
+            const int fd = session->fd_;
+            if (!update_interest(session, fd, id, true)) {
+                session->close();
+                remove_session(id, fd);
+            }
+        }
     }
 
     void EventLoop::notify() {
         if (wake_fd_ < 0) {
             return;
         }
+        if (wake_pending_.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
         const uint64_t one = 1;
         const ssize_t wrote = ::write(wake_fd_, &one, sizeof(one));
         if (wrote < 0 && errno != EAGAIN) {
+            wake_pending_.store(false, std::memory_order_release);
             std::cerr << "[event_loop] wake write failed errno=" << errno << "\n";
         }
     }
@@ -166,7 +195,8 @@ namespace jolt::gateway {
                 uint64_t value = 0;
                 while (::read(wake_fd_, &value, sizeof(value)) == sizeof(value)) {
                 }
-                gateway_->drain_exchange_events();
+                wake_pending_.store(false, std::memory_order_release);
+                drain_ready_sessions();
                 continue;
             }
 
@@ -176,7 +206,7 @@ namespace jolt::gateway {
             }
 
             auto* session = active_sessions_[id].get();
-            if (!session) {
+            if (!session || session->closed_.load(std::memory_order_acquire)) {
                 continue;
             }
 
@@ -193,7 +223,7 @@ namespace jolt::gateway {
             }
 
             session = (id < active_sessions_.size()) ? active_sessions_[id].get() : nullptr;
-            if (!session || session->closed_) {
+            if (!session || session->closed_.load(std::memory_order_acquire)) {
                 remove_session(id, fd);
                 continue;
             }
@@ -203,12 +233,21 @@ namespace jolt::gateway {
             }
 
             session = (id < active_sessions_.size()) ? active_sessions_[id].get() : nullptr;
-            if (!session || session->closed_) {
+            if (!session || session->closed_.load(std::memory_order_acquire)) {
                 remove_session(id, fd);
                 continue;
             }
 
-            if (!update_interest(session, fd, id, session->want_write())) {
+            bool want_write = session->want_write();
+            if (!want_write) {
+                session->tx_armed_.store(false, std::memory_order_release);
+                if (session->want_write()) {
+                    session->tx_armed_.store(true, std::memory_order_release);
+                    want_write = true;
+                }
+            }
+
+            if (!update_interest(session, fd, id, want_write)) {
                 session->close();
                 remove_session(id, fd);
             }
@@ -243,7 +282,11 @@ namespace jolt::gateway {
     void EventLoop::remove_session(uint64_t id, int fd) {
         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
         if (id < active_sessions_.size()) {
-            active_sessions_[id] = nullptr;
+            session_view_[id].store(nullptr, std::memory_order_release);
+            if (active_sessions_[id]) {
+                active_sessions_[id]->tx_armed_.store(false, std::memory_order_release);
+                active_sessions_[id]->write_interest_enabled_ = false;
+            }
         }
     }
 
@@ -268,8 +311,9 @@ namespace jolt::gateway {
 
     size_t EventLoop::connection_count() const {
         size_t count = 0;
-        for (const auto& session : active_sessions_) {
-            if (session) {
+        for (size_t i = 1; i <= kMaxSessions; ++i) {
+            auto* session = session_view_[i].load(std::memory_order_acquire);
+            if (session && !session->closed_.load(std::memory_order_acquire)) {
                 ++count;
             }
         }
