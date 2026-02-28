@@ -1,0 +1,42 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/bench.dir/link.d"
+  "CMakeFiles/bench.dir/benchmark/fix_parse_bench.cpp.o"
+  "CMakeFiles/bench.dir/benchmark/fix_parse_bench.cpp.o.d"
+  "CMakeFiles/bench.dir/client/ClientMain.cpp.o"
+  "CMakeFiles/bench.dir/client/ClientMain.cpp.o.d"
+  "CMakeFiles/bench.dir/client/FixClient.cpp.o"
+  "CMakeFiles/bench.dir/client/FixClient.cpp.o.d"
+  "CMakeFiles/bench.dir/entry_gateway/Client.cpp.o"
+  "CMakeFiles/bench.dir/entry_gateway/Client.cpp.o.d"
+  "CMakeFiles/bench.dir/entry_gateway/EventLoop.cpp.o"
+  "CMakeFiles/bench.dir/entry_gateway/EventLoop.cpp.o.d"
+  "CMakeFiles/bench.dir/entry_gateway/FixGateway.cpp.o"
+  "CMakeFiles/bench.dir/entry_gateway/FixGateway.cpp.o.d"
+  "CMakeFiles/bench.dir/entry_gateway/FixSession.cpp.o"
+  "CMakeFiles/bench.dir/entry_gateway/FixSession.cpp.o.d"
+  "CMakeFiles/bench.dir/entry_gateway/GatewayMain.cpp.o"
+  "CMakeFiles/bench.dir/entry_gateway/GatewayMain.cpp.o.d"
+  "CMakeFiles/bench.dir/exchange/Exchange.cpp.o"
+  "CMakeFiles/bench.dir/exchange/Exchange.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/DataEventLoop.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/DataEventLoop.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/FixDataSession.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/FixDataSession.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/MarketDataGateway.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/MarketDataGateway.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/RecoveryEventLoop.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/RecoveryEventLoop.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/RecoverySever.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/RecoverySever.cpp.o.d"
+  "CMakeFiles/bench.dir/market_data_gateway/UdpSever.cpp.o"
+  "CMakeFiles/bench.dir/market_data_gateway/UdpSever.cpp.o.d"
+  "CMakeFiles/bench.dir/risk/RiskEngine.cpp.o"
+  "CMakeFiles/bench.dir/risk/RiskEngine.cpp.o.d"
+  "bench"
+  "bench.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/bench.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

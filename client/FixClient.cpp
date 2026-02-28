@@ -548,20 +548,22 @@ namespace jolt::client {
     }
 
     bool FixClient::poll() {
-        if (!read_socket()) {
-            log_error("[client] client poll failed while reading from gateway client_id=" +
-                      fix_client_id_for_log({}, account_, sender_comp_id_));
-            return false;
-        }
+        const bool socket_ok = read_socket();
         std::string msg;
+        bool extracted_any = false;
         while (extract_message(msg)) {
             const std::string msg_type = fix_msg_type_for_log(msg);
             log_info("[client] client received response from gateway msg_type=" + msg_type +
                      " order_id=" + fix_order_id_for_log(msg) +
                      " client_id=" + fix_client_id_for_log(msg, account_, sender_comp_id_));
             inbound_.push_back(std::move(msg));
+            extracted_any = true;
         }
-        return true;
+        if (!socket_ok && !extracted_any) {
+            log_error("[client] client poll failed while reading from gateway client_id=" +
+                      fix_client_id_for_log({}, account_, sender_comp_id_));
+        }
+        return socket_ok || extracted_any;
     }
 
     std::optional<std::string_view> FixClient::next_message() {
@@ -575,8 +577,6 @@ namespace jolt::client {
 
     bool FixClient::read_socket() {
         if (fd_ == -1) {
-            log_error("[client] client read failed: socket is not connected client_id=" +
-                      fix_client_id_for_log({}, account_, sender_comp_id_));
             return false;
         }
 
@@ -609,12 +609,15 @@ namespace jolt::client {
             }
             log_error("[client] client recv failed from gateway client_id=" +
                       fix_client_id_for_log({}, account_, sender_comp_id_));
+            ::close(fd_);
+            fd_ = -1;
             return false;
         }
         if (n == 0) {
             log_warn("[client] client socket closed by gateway client_id=" +
                      fix_client_id_for_log({}, account_, sender_comp_id_));
-            disconnect();
+            ::close(fd_);
+            fd_ = -1;
             return false;
         }
 

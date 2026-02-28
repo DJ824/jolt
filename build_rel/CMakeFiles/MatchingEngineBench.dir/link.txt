@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/MatchingEngineBench.dir/link.d CMakeFiles/MatchingEngineBench.dir/benchmark/matching_engine_bench.cpp.o -o MatchingEngineBench

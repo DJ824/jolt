@@ -49,9 +49,12 @@ int main() {
     std::signal(SIGTERM, on_signal);
 
     exchange.start();
+    uint32_t request_poll_tick = 0;
     while (g_run.load(std::memory_order_acquire)) {
         const bool did_work = exchange.poll_once();
-        exchange.poll_requests();
+        if (!did_work || ((++request_poll_tick & 0x3Fu) == 0)) {
+            exchange.poll_requests();
+        }
         if (!did_work) {
             _mm_pause();
         }

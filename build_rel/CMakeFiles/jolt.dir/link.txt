@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/jolt.dir/link.d CMakeFiles/jolt.dir/main.cpp.o -o jolt

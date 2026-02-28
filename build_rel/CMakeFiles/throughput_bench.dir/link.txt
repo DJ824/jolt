@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects -Wl,--dependency-file=CMakeFiles/throughput_bench.dir/link.d CMakeFiles/throughput_bench.dir/tests/throughput_bench.cpp.o -o throughput_bench

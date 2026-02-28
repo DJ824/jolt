@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects -Wl,--dependency-file=CMakeFiles/realistic_bench.dir/link.d CMakeFiles/realistic_bench.dir/tests/realistic_bench.cpp.o -o realistic_bench

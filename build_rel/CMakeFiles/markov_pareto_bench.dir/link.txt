@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/markov_pareto_bench.dir/link.d CMakeFiles/markov_pareto_bench.dir/tests/markov_pareto_bench.cpp.o -o markov_pareto_bench

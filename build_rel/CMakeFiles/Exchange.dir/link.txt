@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/Exchange.dir/link.d CMakeFiles/Exchange.dir/exchange/ExchangeMain.cpp.o CMakeFiles/Exchange.dir/exchange/Exchange.cpp.o CMakeFiles/Exchange.dir/exchange/DayTicker.cpp.o CMakeFiles/Exchange.dir/risk/RiskEngine.cpp.o -o Exchange  /usr/lib64/liburing.so

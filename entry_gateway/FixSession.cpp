@@ -7,6 +7,7 @@
 #include "../include/async_logger.h"
 
 #include <stdexcept>
+#include <sys/uio.h>
 #include <unistd.h>
 #include <sys/socket.h>
 
@@ -132,10 +133,28 @@ namespace jolt::gateway {
 
 
     bool FixSession::send_pending() {
+        constexpr int kMaxWritevIov = 16;
         while (!tx_buf_.empty()) {
-            Message& m = tx_buf_.front();
-            const size_t remaining = m.len - tx_off_;
-            const ssize_t n = write(fd_, m.buf.data() + tx_off_, remaining);
+            iovec iov[kMaxWritevIov]{};
+            int iovcnt = 0;
+            size_t index = 0;
+            for (auto it = tx_buf_.begin(); it != tx_buf_.end() && iovcnt < kMaxWritevIov; ++it, ++index) {
+                const size_t start = (index == 0) ? tx_off_ : 0;
+                if (start >= it->len) {
+                    continue;
+                }
+                iov[iovcnt].iov_base = it->buf.data() + start;
+                iov[iovcnt].iov_len = it->len - start;
+                ++iovcnt;
+            }
+
+            if (iovcnt == 0) {
+                tx_off_ = 0;
+                tx_buf_.clear();
+                return true;
+            }
+
+            const ssize_t n = ::writev(fd_, iov, iovcnt);
             if (n < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     return true;
@@ -148,27 +167,19 @@ namespace jolt::gateway {
                 return false;
             }
 
-            if (static_cast<size_t>(n) == remaining) {
-                // const std::string_view msg_view(m.buf.data(), m.len);
-                // const std::string_view msg_type = find_fix_tag(msg_view, "35=");
-                // const std::string_view order_id = find_fix_tag(msg_view, "37=");
-                // std::string_view client_id = find_fix_tag(msg_view, "1=");
-                // if (client_id.empty()) {
-                //     client_id = find_fix_tag(msg_view, "56=");
-                // }
-                // if (client_id.empty()) {
-                //     client_id = find_fix_tag(msg_view, "49=");
-                // }
-                // log_info("[gtwy] gateway sent msg to client msg_type=" +
-                //          std::string(msg_type.empty() ? std::string_view{"?"} : msg_type) +
-                //          " order_id=" + std::string(order_id.empty() ? std::string_view{"unknown"} : order_id) +
-                //          " client_id=" + std::string(client_id.empty() ? std::string_view{"unknown"} : client_id) +
-                //          " session=" + std::to_string(session_id_));
-                tx_buf_.pop_front();
-                tx_off_ = 0;
-            } else {
-                tx_off_ += static_cast<size_t>(n);
-                return true;
+            size_t consumed = static_cast<size_t>(n);
+            while (consumed > 0 && !tx_buf_.empty()) {
+                Message& front = tx_buf_.front();
+                const size_t remaining = front.len - tx_off_;
+                if (consumed >= remaining) {
+                    consumed -= remaining;
+                    tx_buf_.pop_front();
+                    tx_off_ = 0;
+                }
+                else {
+                    tx_off_ += consumed;
+                    consumed = 0;
+                }
             }
         }
         return true;

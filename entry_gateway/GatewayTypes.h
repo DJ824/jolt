@@ -26,11 +26,8 @@ namespace jolt {
     };
 
     struct OrderState {
-        ob::OrderAction action{ob::OrderAction::New};
         std::array<char, kOrderStateTextBufLen> cl_ord_id{};
         std::array<char, kOrderStateTextBufLen> orig_cl_ord_id{};
-        std::array<char, kOrderStateTextBufLen> symbol{};
-        uint64_t order_id{0};
         ob::OrderParams params{};
         uint64_t session_id{0};
         State state{State::PendingNew};

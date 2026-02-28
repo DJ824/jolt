@@ -20,8 +20,8 @@ namespace jolt::client {
         uint64_t base_price{60'000};
         uint64_t price_step{1};
         uint64_t send_interval_us{0};
-        size_t poll_every{64};
-        uint64_t final_drain_ms{2000};
+        size_t poll_every{0};
+        uint64_t final_drain_ms{0};
         bool use_market_orders{false};
         uint64_t target_active_limit{10'000};
         uint64_t target_active_stop{1'000};

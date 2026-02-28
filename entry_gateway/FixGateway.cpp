@@ -69,31 +69,6 @@ namespace {
         }
     }
 
-    bool utc_timestamp(char* buf, size_t cap, size_t& len) {
-        using namespace std::chrono;
-        const auto now = system_clock::now();
-        const auto tt = system_clock::to_time_t(now);
-        std::tm tm{};
-        gmtime_r(&tt, &tm);
-        const auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-        const int wrote = std::snprintf(
-            buf,
-            cap,
-            "%04d%02d%02d-%02d:%02d:%02d.%03d",
-            tm.tm_year + 1900,
-            tm.tm_mon + 1,
-            tm.tm_mday,
-            tm.tm_hour,
-            tm.tm_min,
-            tm.tm_sec,
-            static_cast<int>(ms.count()));
-        if (wrote <= 0 || static_cast<size_t>(wrote) >= cap) {
-            return false;
-        }
-        len = static_cast<size_t>(wrote);
-        return true;
-    }
-
     bool parse_uint64(std::string_view s, uint64_t& out) {
         if (s.empty()) {
             return false;
@@ -203,6 +178,15 @@ namespace {
             }
         }
         return fnv1a_64(cl_ord_id);
+    }
+
+    jolt::gateway::ClOrdMapKey cl_ord_key_from_view(std::string_view value) {
+        jolt::gateway::ClOrdMapKey key{};
+        key.len = static_cast<uint8_t>(value.size());
+        if (!value.empty()) {
+            std::memcpy(key.bytes.data(), value.data(), value.size());
+        }
+        return key;
     }
 
     bool parse_fix_message(std::string_view msg, FixMsg& out) {
@@ -376,68 +360,21 @@ namespace {
         size_t cap{0};
     };
 
-    bool append_bytes(FixBuffer& buf, std::string_view value) {
-        if (value.empty()) {
-            return true;
-        }
-        if (buf.len + value.size() > buf.cap) {
-            return false;
-        }
-        std::memcpy(buf.data + buf.len, value.data(), value.size());
-        buf.len += value.size();
-        return true;
-    }
-
-    bool append_char(FixBuffer& buf, char value) {
-        if (buf.len + 1 > buf.cap) {
-            return false;
-        }
-        buf.data[buf.len++] = value;
-        return true;
-    }
-
-    bool append_tag(FixBuffer& buf, int tag) {
-        char tag_buf[16];
-        auto [ptr, ec] = std::to_chars(tag_buf, tag_buf + sizeof(tag_buf), tag);
-        if (ec != std::errc{}) {
-            return false;
-        }
-        return append_bytes(buf, std::string_view(tag_buf, static_cast<size_t>(ptr - tag_buf))) &&
-            append_char(buf, '=');
-    }
-
-    bool append_field(FixBuffer& buf, int tag, std::string_view value) {
-        return append_tag(buf, tag) && append_bytes(buf, value) && append_char(buf, kFixDelim);
-    }
-
-    bool append_field(FixBuffer& buf, int tag, uint64_t value) {
-        char val_buf[32];
-        auto [ptr, ec] = std::to_chars(val_buf, val_buf + sizeof(val_buf), value);
-        if (ec != std::errc{}) {
-            return false;
-        }
-        return append_tag(buf, tag) &&
-            append_bytes(buf, std::string_view(val_buf, static_cast<size_t>(ptr - val_buf))) &&
-            append_char(buf, kFixDelim);
-    }
-
-
-    bool append_timestamp_field(FixBuffer& buf, int tag) {
-        char ts_buf[32];
-        size_t ts_len = 0;
-        if (!utc_timestamp(ts_buf, sizeof(ts_buf), ts_len)) {
-            return false;
-        }
-        return append_field(buf, tag, std::string_view(ts_buf, ts_len));
-    }
-
     bool append_checksum(FixBuffer& buf, uint32_t checksum) {
-        char chk_buf[4];
-        const int wrote = std::snprintf(chk_buf, sizeof(chk_buf), "%03u", checksum);
-        if (wrote != 3) {
+        if (buf.len + 7 > buf.cap) {
             return false;
         }
-        return append_field(buf, 10, std::string_view(chk_buf, 3));
+        checksum %= 1000;
+        char* out = buf.data + buf.len;
+        out[0] = '1';
+        out[1] = '0';
+        out[2] = '=';
+        out[3] = static_cast<char>('0' + ((checksum / 100) % 10));
+        out[4] = static_cast<char>('0' + ((checksum / 10) % 10));
+        out[5] = static_cast<char>('0' + (checksum % 10));
+        out[6] = kFixDelim;
+        buf.len += 7;
+        return true;
     }
 
     std::vector<size_t> parse_soh(std::string_view msg) {
@@ -584,10 +521,14 @@ namespace jolt::gateway {
     FixGateway::FixGateway(const std::string& gtwy_to_exch_name, const std::string& exch_to_gtwy_name)
         : gtwy_exch_(gtwy_to_exch_name, SharedRingMode::Attach),
           exch_gtwy_(exch_to_gtwy_name, SharedRingMode::Attach),
+          cl_ord_id_to_order_id_(2'000'000, ClOrdMapKey::empty(), ClOrdMapKey::tombstone(), 0.80f),
           event_loop_(make_listen_socket(8080)) {
         event_loop_.set_gateway(this);
         sessions_.resize(1);
+        clients_.reserve(2048);
+        client_traffic_.reserve(2048);
         next_client_traffic_log_ = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        order_state_pool_.reserve(1'000'000);
     }
 
     void FixGateway::load_clients(const std::vector<ClientInfo>& clients) {
@@ -664,19 +605,64 @@ namespace jolt::gateway {
         FixMessage body_msg{};
         FixBuffer body{body_msg.data.data(), 0, body_msg.data.size()};
 
-        if (!append_field(body, 35, "8")) {
+        auto append_raw = [](FixBuffer& dst, const char* src, size_t n) -> bool {
+            if (dst.len + n > dst.cap) {
+                return false;
+            }
+            std::memcpy(dst.data + dst.len, src, n);
+            dst.len += n;
+            return true;
+        };
+        auto append_sv_field =
+            [&](FixBuffer& dst, const char* tag_eq, size_t tag_len, std::string_view value) -> bool {
+            if (dst.len + tag_len + value.size() + 1 > dst.cap) {
+                return false;
+            }
+            std::memcpy(dst.data + dst.len, tag_eq, tag_len);
+            dst.len += tag_len;
+            if (!value.empty()) {
+                std::memcpy(dst.data + dst.len, value.data(), value.size());
+                dst.len += value.size();
+            }
+            dst.data[dst.len++] = kFixDelim;
+            return true;
+        };
+        auto append_u64_field =
+            [&](FixBuffer& dst, const char* tag_eq, size_t tag_len, uint64_t value) -> bool {
+            char num_buf[32];
+            auto [num_ptr, num_ec] = std::to_chars(num_buf, num_buf + sizeof(num_buf), value);
+            if (num_ec != std::errc{}) {
+                return false;
+            }
+            return append_sv_field(
+                dst,
+                tag_eq,
+                tag_len,
+                std::string_view(num_buf, static_cast<size_t>(num_ptr - num_buf)));
+        };
+
+        if (!append_raw(body, "35=8\x01", 5)) {
             return false;
         }
-        if (!append_field(body, 49, session->target_comp_id)) {
+        if (!append_sv_field(body, "49=", sizeof("49=") - 1, session->target_comp_id)) {
             return false;
         }
-        if (!append_field(body, 56, session->sender_comp_id)) {
+        if (!append_sv_field(body, "56=", sizeof("56=") - 1, session->sender_comp_id)) {
             return false;
         }
-        if (!append_field(body, 34, session->seq++)) {
+        if (!append_u64_field(body, "34=", sizeof("34=") - 1, session->seq++)) {
             return false;
         }
-        if (!append_timestamp_field(body, 52)) {
+
+        char ts_buf[32];
+        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        auto [ts_ptr, ts_ec] = std::to_chars(ts_buf, ts_buf + sizeof(ts_buf), now_ns);
+        if (ts_ec != std::errc{}) {
+            return false;
+        }
+        const size_t ts_len = static_cast<size_t>(ts_ptr - ts_buf);
+        if (!append_sv_field(body, "52=", sizeof("52=") - 1, std::string_view(ts_buf, ts_len))) {
             return false;
         }
 
@@ -711,86 +697,88 @@ namespace jolt::gateway {
             ord_status = "4";
         }
 
-        if (!append_field(body, 150, exec_type)) {
+        if (!append_sv_field(body, "150=", sizeof("150=") - 1, exec_type)) {
             return false;
         }
-        if (!append_field(body, 39, ord_status)) {
+        if (!append_sv_field(body, "39=", sizeof("39=") - 1, ord_status)) {
             return false;
         }
         const std::string_view cl_ord_id = fixed_field_view(state.cl_ord_id);
         const std::string_view orig_cl_ord_id = fixed_field_view(state.orig_cl_ord_id);
-        const std::string_view symbol = fixed_field_view(state.symbol);
 
-        if (!append_field(body, 11, cl_ord_id)) {
+        if (!append_sv_field(body, "11=", sizeof("11=") - 1, cl_ord_id)) {
             return false;
         }
         if (!orig_cl_ord_id.empty()) {
-            if (!append_field(body, 41, orig_cl_ord_id)) {
+            if (!append_sv_field(body, "41=", sizeof("41=") - 1, orig_cl_ord_id)) {
                 return false;
             }
         }
-        if (!append_field(body, 37, state.params.id)) {
+        if (!append_u64_field(body, "37=", sizeof("37=") - 1, state.params.id)) {
             return false;
         }
-        if (!append_field(body, 17, exec_id)) {
+        if (!append_u64_field(body, "17=", sizeof("17=") - 1, exec_id)) {
             return false;
         }
-        if (!append_field(body, 54, state.params.side == ob::Side::Buy ? "1" : "2")) {
+        if (!append_sv_field(
+            body,
+            "54=",
+            sizeof("54=") - 1,
+            state.params.side == ob::Side::Buy ? "1" : "2")) {
             return false;
         }
-        if (!append_field(body, 38, state.params.qty)) {
+        if (!append_u64_field(body, "38=", sizeof("38=") - 1, state.params.qty)) {
             return false;
         }
-        if (!append_field(body, 40, fix_ord_type(state.params.type))) {
+        if (!append_sv_field(body, "40=", sizeof("40=") - 1, fix_ord_type(state.params.type))) {
             return false;
         }
         if (state.params.type == ob::OrderType::Limit) {
-            if (!append_field(body, 44, (state.params.price))) {
+            if (!append_u64_field(body, "44=", sizeof("44=") - 1, state.params.price)) {
                 return false;
             }
         }
         else if (state.params.type == ob::OrderType::StopLimit) {
-            if (!append_field(body, 44, (state.params.limit_px))) {
+            if (!append_u64_field(body, "44=", sizeof("44=") - 1, state.params.limit_px)) {
                 return false;
             }
             if (state.params.trigger != 0) {
-                if (!append_field(body, 99, (state.params.trigger))) {
+                if (!append_u64_field(body, "99=", sizeof("99=") - 1, state.params.trigger)) {
                     return false;
                 }
             }
         }
         else if (state.params.type == ob::OrderType::StopMarket) {
             if (state.params.trigger != 0) {
-                if (!append_field(body, 99, (state.params.trigger))) {
+                if (!append_u64_field(body, "99=", sizeof("99=") - 1, state.params.trigger)) {
                     return false;
                 }
             }
         }
-        if (!append_field(body, 59, fix_tif(state.params.tif))) {
+        if (!append_sv_field(body, "59=", sizeof("59=") - 1, fix_tif(state.params.tif))) {
             return false;
         }
-        if (!append_timestamp_field(body, 60)) {
+        if (!append_sv_field(body, "60=", sizeof("60=") - 1, std::string_view(ts_buf, ts_len))) {
             return false;
         }
         if (!accepted) {
-            if (!append_field(body, 58, reject_reason_text(reason))) {
+            if (!append_sv_field(body, "58=", sizeof("58=") - 1, reject_reason_text(reason))) {
                 return false;
             }
         }
-        if (!symbol.empty()) {
-            if (!append_field(body, 55, symbol)) {
+        if (state.params.symbol_id != 0) {
+            if (!append_u64_field(body, "55=", sizeof("55=") - 1, state.params.symbol_id)) {
                 return false;
             }
         }
-
         FixBuffer msg{out.data.data(), 0, out.data.size()};
-        if (!append_field(msg, 8, "FIX.4.4")) {
+        if (!append_raw(msg, "8=FIX.4.4\x01", 10)) {
             return false;
         }
-        if (!append_field(msg, 9, (body.len))) {
+        if (!append_u64_field(msg, "9=", sizeof("9=") - 1, body.len)) {
             return false;
         }
-        if (!append_bytes(msg, std::string_view(body_msg.data.data(), body.len))) {
+        if (!append_raw(msg, body_msg.data.data(), body.len)) {
             return false;
         }
 
@@ -815,41 +803,86 @@ namespace jolt::gateway {
         FixMessage body_msg{};
         FixBuffer body{body_msg.data.data(), 0, body_msg.data.size()};
 
-        if (!append_field(body, 35, "A")) {
+        auto append_raw = [](FixBuffer& dst, const char* src, size_t n) -> bool {
+            if (dst.len + n > dst.cap) {
+                return false;
+            }
+            std::memcpy(dst.data + dst.len, src, n);
+            dst.len += n;
+            return true;
+        };
+        auto append_sv_field =
+            [&](FixBuffer& dst, const char* tag_eq, size_t tag_len, std::string_view value) -> bool {
+            if (dst.len + tag_len + value.size() + 1 > dst.cap) {
+                return false;
+            }
+            std::memcpy(dst.data + dst.len, tag_eq, tag_len);
+            dst.len += tag_len;
+            if (!value.empty()) {
+                std::memcpy(dst.data + dst.len, value.data(), value.size());
+                dst.len += value.size();
+            }
+            dst.data[dst.len++] = kFixDelim;
+            return true;
+        };
+        auto append_u64_field =
+            [&](FixBuffer& dst, const char* tag_eq, size_t tag_len, uint64_t value) -> bool {
+            char num_buf[32];
+            auto [num_ptr, num_ec] = std::to_chars(num_buf, num_buf + sizeof(num_buf), value);
+            if (num_ec != std::errc{}) {
+                return false;
+            }
+            return append_sv_field(
+                dst,
+                tag_eq,
+                tag_len,
+                std::string_view(num_buf, static_cast<size_t>(num_ptr - num_buf)));
+        };
+
+        if (!append_raw(body, "35=A\x01", 5)) {
             return false;
         }
-        if (!append_field(body, 49, session->target_comp_id)) {
+        if (!append_sv_field(body, "49=", sizeof("49=") - 1, session->target_comp_id)) {
             return false;
         }
-        if (!append_field(body, 56, session->sender_comp_id)) {
+        if (!append_sv_field(body, "56=", sizeof("56=") - 1, session->sender_comp_id)) {
             return false;
         }
-        if (!append_field(body, 34, session->seq++)) {
+        if (!append_u64_field(body, "34=", sizeof("34=") - 1, session->seq++)) {
             return false;
         }
-        if (!append_timestamp_field(body, 52)) {
+
+        char ts_buf[32];
+        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        auto [ts_ptr, ts_ec] = std::to_chars(ts_buf, ts_buf + sizeof(ts_buf), now_ns);
+        if (ts_ec != std::errc{}) {
             return false;
         }
-        if (!append_field(body, 98, "0")) {
+        const size_t ts_len = static_cast<size_t>(ts_ptr - ts_buf);
+        if (!append_sv_field(body, "52=", sizeof("52=") - 1, std::string_view(ts_buf, ts_len))) {
             return false;
         }
-        if (!append_field(body, 108, (heartbeat_int))) {
+        if (!append_sv_field(body, "98=", sizeof("98=") - 1, "0")) {
+            return false;
+        }
+        if (!append_u64_field(body, "108=", sizeof("108=") - 1, heartbeat_int)) {
             return false;
         }
         if (reset_seq) {
-            if (!append_field(body, 141, "Y")) {
+            if (!append_sv_field(body, "141=", sizeof("141=") - 1, "Y")) {
                 return false;
             }
         }
 
         FixBuffer msg{out.data.data(), 0, out.data.size()};
-        if (!append_field(msg, 8, "FIX.4.4")) {
+        if (!append_raw(msg, "8=FIX.4.4\x01", 10)) {
             return false;
         }
-        if (!append_field(msg, 9, (body.len))) {
+        if (!append_u64_field(msg, "9=", sizeof("9=") - 1, body.len)) {
             return false;
         }
-        if (!append_bytes(msg, std::string_view(body_msg.data.data(), body.len))) {
+        if (!append_raw(msg, body_msg.data.data(), body.len)) {
             return false;
         }
 
@@ -974,6 +1007,8 @@ namespace jolt::gateway {
                 " max_len=" + std::to_string(kOrderStateTextMaxLen));
             return false;
         }
+        const ClOrdMapKey cl_ord_key = cl_ord_key_from_view(cl_ord_id);
+        const ClOrdMapKey orig_cl_ord_key = cl_ord_key_from_view(orig_cl_ord_id);
 
         if (msg_type.size() != 1) {
             log_error("[gtwy] gateway received invalid MsgType for order client_id=" + std::to_string(client_id) +
@@ -990,7 +1025,19 @@ namespace jolt::gateway {
 
         switch (msg_type[0]) {
         case 'D':
-            state = new OrderState{};
+            {
+                const uint64_t order_id = next_order_id_++;
+                state = order_state_pool_.acquire(order_id);
+                if (!state) {
+                    log_error("[gtwy] gateway failed to acquire order state slot order_id=" +
+                        std::to_string(order_id) +
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                *state = OrderState{};
+                state->params.id = order_id;
+            }
             state->params.client_id = client_id;
             state->params.ts = static_cast<uint64_t>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -998,13 +1045,8 @@ namespace jolt::gateway {
 
             state->session_id = session_id;
             state->params.action = ob::OrderAction::New;
-            state->action = ob::OrderAction::New;
-            order_states_[std::string(orig_cl_ord_id)] = state;
-            state->order_id = next_order_id_++;
-            state->params.id = state->order_id;
-
-
             break;
+
         case 'F':
             if (orig_cl_ord_id.empty()) {
                 log_error("[gtwy] gateway cancel missing OrigClOrdID cl_ord_id=" + std::string(cl_ord_id) +
@@ -1013,17 +1055,30 @@ namespace jolt::gateway {
                 return false;
             }
             {
-                auto it = order_states_.find(std::string(orig_cl_ord_id));
-                if (it == order_states_.end() || !it->second) {
+                auto* mapped_order_id = cl_ord_id_to_order_id_.find(orig_cl_ord_key);
+                if (!mapped_order_id) {
                     log_error("[gtwy] gateway cancel references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
                         " client_id=" + std::to_string(client_id) +
                         " session=" + std::to_string(session_id));
                     return false;
                 }
-                state = it->second;
+                state = order_state_pool_.get(*mapped_order_id);
+                if (!state) {
+                    log_error("[gtwy] gateway cancel resolved unmapped order_id=" + std::to_string(*mapped_order_id) +
+                        " for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                if (state->params.id != *mapped_order_id) {
+                    log_error("[gtwy] gateway cancel resolved stale state for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                        " order_id=" + std::to_string(*mapped_order_id) +
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
             }
             state->params.action = ob::OrderAction::Cancel;
-            state->action = ob::OrderAction::Cancel;
             break;
         case 'G':
             if (orig_cl_ord_id.empty()) {
@@ -1033,18 +1088,32 @@ namespace jolt::gateway {
                 return false;
             }
             {
-                auto it = order_states_.find(std::string(orig_cl_ord_id));
-                if (it == order_states_.end() || !it->second) {
+                auto* mapped_order_id = cl_ord_id_to_order_id_.find(orig_cl_ord_key);
+                if (!mapped_order_id) {
                     log_error("[gtwy] gateway replace references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
                         " client_id=" + std::to_string(client_id) +
                         " session=" + std::to_string(session_id));
                     return false;
                 }
-                state = it->second;
+                state = order_state_pool_.get(*mapped_order_id);
+                if (!state) {
+                    log_error("[gtwy] gateway replace resolved unmapped order_id=" + std::to_string(*mapped_order_id) +
+                        " for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                if (state->params.id != *mapped_order_id) {
+                    log_error("[gtwy] gateway replace resolved stale state for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                        " order_id=" + std::to_string(*mapped_order_id) +
+                        " client_id=" + std::to_string(client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
             }
             state->params.action = ob::OrderAction::Modify;
-            state->action = ob::OrderAction::Modify;
             break;
+
         default:
             log_error("[gtwy] gateway unsupported order MsgType=" + std::string(msg_type) +
                 " client_id=" + std::to_string(client_id) +
@@ -1070,18 +1139,8 @@ namespace jolt::gateway {
             }
         }
 
-        state->params.id = state->order_id;
-
         auto symbol = get_tag(msg, 55);
         if (!symbol.empty()) {
-            if (symbol.size() > kOrderStateTextMaxLen) {
-                log_error("[gtwy] gateway received order with too-long Symbol tag55 client_id=" +
-                    std::to_string(client_id) +
-                    " session=" + std::to_string(session_id) +
-                    " symbol_len=" + std::to_string(symbol.size()) +
-                    " max_len=" + std::to_string(kOrderStateTextMaxLen));
-                return false;
-            }
             uint16_t symbol_id = 0;
             if (!parse_symbol_id(symbol, symbol_id)) {
                 log_error("[gtwy] gateway failed parsing symbol tag55 value=" + std::string(symbol) +
@@ -1091,13 +1150,6 @@ namespace jolt::gateway {
                 return false;
             }
             state->params.symbol_id = symbol_id;
-            if (!set_fixed_field(state->symbol, symbol)) {
-                log_error("[gtwy] gateway failed storing symbol tag55 due to length order_id=" +
-                    std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
         }
         else if (state->params.action == ob::OrderAction::New) {
             log_error("[gtwy] gateway new order missing symbol tag55 order_id=" + std::to_string(state->params.id) +
@@ -1264,24 +1316,26 @@ namespace jolt::gateway {
             return false;
         }
 
-        const std::string state_key =
-            orig_cl_ord_id.empty() ? std::string(cl_ord_id) : std::string(orig_cl_ord_id);
+        auto upsert_cl_ord = [&](const ClOrdMapKey& key, const uint64_t order_id) {
+            cl_ord_id_to_order_id_.insert(key, order_id);
+        };
         if (state->params.action == ob::OrderAction::New) {
             state->state = State::PendingNew;
-            order_states_[state_key] = state;
+            upsert_cl_ord(cl_ord_key, state->params.id);
+            if (orig_cl_ord_key != cl_ord_key) {
+                upsert_cl_ord(orig_cl_ord_key, state->params.id);
+            }
         }
         else if (state->params.action == ob::OrderAction::Modify) {
             state->state = State::PendingReplace;
-            order_states_[std::string(cl_ord_id)] = state;
+            upsert_cl_ord(cl_ord_key, state->params.id);
         }
         else {
             state->state = State::PendingCancel;
         }
 
-        order_id_to_state_[state->order_id] = state;
-
         // GtwyToExchMsg out{};
-        // out.token = state->order_id;
+        // out.token = state->params.id;
         // out.order = state->params;
         // out.client_id = client_id;
         // gtwy_exch_.enqueue(out);
@@ -1301,19 +1355,17 @@ namespace jolt::gateway {
     void FixGateway::exchange_rx_loop() {
         while (running_.load(std::memory_order_acquire)) {
             ExchToGtwyMsg msg{};
-            bool had_work = false;
+            bool drained_any = false;
             while (exch_gtwy_.try_dequeue(msg)) {
-                had_work = true;
-                while (!exchange_events_.enqueue(msg)) {
-                    if (!running_.load(std::memory_order_acquire)) {
-                        return;
-                    }
-                    std::this_thread::yield();
+                while (running_.load(std::memory_order_acquire) && !exchange_events_.enqueue(msg)) {
                 }
-                event_loop_.notify();
+                if (!running_.load(std::memory_order_acquire)) {
+                    return;
+                }
+                drained_any = true;
             }
-            if (!had_work) {
-                std::this_thread::yield();
+            if (drained_any) {
+                event_loop_.notify();
             }
         }
     }
@@ -1343,8 +1395,9 @@ namespace jolt::gateway {
                 client->set_session_id(UINT64_MAX);
             }
         }
-        for (auto& [_, state] : order_id_to_state_) {
-            if (!state) {
+        for (uint64_t order_id = 1; order_id < next_order_id_; ++order_id) {
+            auto* state = order_state_pool_.get(order_id);
+            if (!state || state->params.id == 0) {
                 continue;
             }
             if (state->session_id == disconnected_session_id) {
@@ -1388,17 +1441,21 @@ namespace jolt::gateway {
 
     void FixGateway::handle_exchange_msg(const ExchToGtwyMsg& msg) {
         const uint64_t state_order_id = msg.order_id;
-        auto it = order_id_to_state_.find(state_order_id);
-
-        if (it == order_id_to_state_.end() || !it->second) {
+        auto* state = order_state_pool_.get(state_order_id);
+        if (!state) {
             log_warn("[gtwy] gateway got exchange response for unknown order_id=" +
                 std::to_string(state_order_id) +
                 " client_id=" + std::to_string(msg.client_id));
             return;
         }
-        auto order_state = it->second;
+        if (state->params.id != state_order_id) {
+            log_warn("[gtwy] gateway got exchange response for inactive order_id=" +
+                std::to_string(state_order_id) +
+                " client_id=" + std::to_string(msg.client_id));
+            return;
+        }
 
-        const uint64_t sess_id = order_state->session_id;
+        const uint64_t sess_id = state->session_id;
 
         if (sess_id == UINT64_MAX || sess_id >= sessions_.size()) {
             return;
@@ -1409,7 +1466,6 @@ namespace jolt::gateway {
             return;
         }
 
-        auto* state = it->second;
         switch (msg.type) {
         case ExchToGtwyMsg::Type::Submitted:
             {

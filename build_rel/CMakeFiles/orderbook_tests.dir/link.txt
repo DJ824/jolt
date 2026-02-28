@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/orderbook_tests.dir/link.d CMakeFiles/orderbook_tests.dir/tests/orderbook_tests.cpp.o -o orderbook_tests

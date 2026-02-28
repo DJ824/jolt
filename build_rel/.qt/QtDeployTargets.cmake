@@ -1,0 +1,8 @@
+set(__QT_DEPLOY_TARGET_jolt_FILE /home/djaiswal/CLionProjects/matching-engine/jolt/build_rel/jolt)
+set(__QT_DEPLOY_TARGET_jolt_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_orderbook_tests_FILE /home/djaiswal/CLionProjects/matching-engine/jolt/build_rel/orderbook_tests)
+set(__QT_DEPLOY_TARGET_orderbook_tests_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_bench_FILE /home/djaiswal/CLionProjects/matching-engine/jolt/build_rel/bench)
+set(__QT_DEPLOY_TARGET_bench_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_rt_view_FILE /home/djaiswal/CLionProjects/matching-engine/jolt/build_rel/rt_view)
+set(__QT_DEPLOY_TARGET_rt_view_TYPE EXECUTABLE)

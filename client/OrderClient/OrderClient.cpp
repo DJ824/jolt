@@ -383,9 +383,9 @@ namespace jolt::client {
             return true;
         };
         auto poll_and_drain = [&](uint64_t* drained_out = nullptr) -> bool {
-            if (!fix_.poll()) {
+            const bool poll_ok = fix_.poll();
+            if (!poll_ok) {
                 ++stats_.poll_fail;
-                return false;
             }
             const uint64_t drained = drain_fix_messages(fix_);
             local_responses_recv += drained;
@@ -393,7 +393,8 @@ namespace jolt::client {
             if (drained_out != nullptr) {
                 *drained_out = drained;
             }
-            return true;
+            // Allow one last drain pass on disconnect if messages were already buffered.
+            return poll_ok || drained > 0;
         };
 
         for (uint64_t order_idx = 0; order_idx < orders_for_client; ++order_idx) {
@@ -551,49 +552,75 @@ namespace jolt::client {
         }
 
         if (!cfg_.stay_connected) {
-            constexpr uint64_t kIdleBreakPolls = 500;
-            uint64_t idle_polls = 0;
-            const auto drain_deadline = std::chrono::steady_clock::now() +
-                std::chrono::milliseconds(cfg_.final_drain_ms);
-            while (local_responses_recv < local_orders_sent &&
-                   std::chrono::steady_clock::now() < drain_deadline) {
-                uint64_t drained = 0;
-                if (!poll_and_drain(&drained)) {
-                    break;
-                }
-                if (drained == 0) {
-                    ++idle_polls;
-                    if (idle_polls >= kIdleBreakPolls) {
-                        break;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                } else {
-                    idle_polls = 0;
-                }
-            }
+            const bool drain_has_timeout = cfg_.final_drain_ms > 0;
+            const auto drain_start = std::chrono::steady_clock::now();
+            const auto drain_deadline = drain_start + std::chrono::milliseconds(cfg_.final_drain_ms);
+            auto last_progress_log = drain_start;
+            bool poll_failed = false;
+            bool drain_timed_out = false;
+
             if (local_responses_recv < local_orders_sent) {
-                std::cerr << "[client] response drain timed out client_id=" << id_
-                          << " sent=" << local_orders_sent
+                std::cerr << "[client] connected client_id=" << id_
+                          << " waiting_for_responses sent=" << local_orders_sent
                           << " recv=" << local_responses_recv
                           << " missing=" << (local_orders_sent - local_responses_recv)
                           << "\n";
+            }
+
+            while (local_responses_recv < local_orders_sent) {
+                if (drain_has_timeout && std::chrono::steady_clock::now() >= drain_deadline) {
+                    drain_timed_out = true;
+                    break;
+                }
+
+                uint64_t drained = 0;
+                if (!poll_and_drain(&drained)) {
+                    poll_failed = true;
+                    break;
+                }
+
+                const auto now = std::chrono::steady_clock::now();
+                if (now - last_progress_log >= std::chrono::seconds(5)) {
+                    std::cerr << "[client] connected client_id=" << id_
+                              << " waiting_for_responses sent=" << local_orders_sent
+                              << " recv=" << local_responses_recv
+                              << " missing=" << (local_orders_sent - local_responses_recv)
+                              << "\n";
+                    last_progress_log = now;
+                }
+
+                if (drained == 0) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+            }
+
+            if (local_responses_recv == local_orders_sent) {
+                std::cerr << "[client] connected client_id=" << id_
+                          << " all_responses_received recv=" << local_responses_recv
+                          << "\n";
+            }
+
+            if (local_responses_recv < local_orders_sent) {
+                if (drain_timed_out) {
+                    std::cerr << "[client] response drain timed out client_id=" << id_
+                              << " sent=" << local_orders_sent
+                              << " recv=" << local_responses_recv
+                              << " missing=" << (local_orders_sent - local_responses_recv)
+                              << "\n";
+                } else if (poll_failed) {
+                    std::cerr << "[client] disconnected before all responses client_id=" << id_
+                              << " sent=" << local_orders_sent
+                              << " recv=" << local_responses_recv
+                              << " missing=" << (local_orders_sent - local_responses_recv)
+                              << "\n";
+                }
             }
             fix_.disconnect();
             return;
         }
 
-        auto last_heartbeat = std::chrono::steady_clock::now();
         while (true) {
             (void)poll_and_drain();
-
-            const auto now = std::chrono::steady_clock::now();
-            if (now - last_heartbeat >= std::chrono::seconds(15)) {
-                if (!fix_.send_raw(fix_.build_heartbeat())) {
-                    ++stats_.send_fail;
-                }
-                last_heartbeat = now;
-            }
-
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }

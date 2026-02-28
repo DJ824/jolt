@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -14,12 +15,61 @@
 #include "../exchange/orderbook/flat_map.h"
 #include "../include/SharedMemoryRing.h"
 #include "../include/Types.h"
+#include "../include/orderstatepool.h"
 #include "../include/spsc.h"
 #include "Client.h"
 #include "EventLoop.h"
 #include "GatewayTypes.h"
 
 namespace jolt::gateway {
+    struct ClOrdMapKey {
+        static constexpr uint8_t kEmptyLen = 0;
+        static constexpr uint8_t kTombstoneLen = 0xFF;
+
+        std::array<char, kOrderStateTextMaxLen> bytes{};
+        uint8_t len{kEmptyLen};
+
+        static ClOrdMapKey empty() noexcept {
+            return {};
+        }
+
+        static ClOrdMapKey tombstone() noexcept {
+            ClOrdMapKey key{};
+            key.len = kTombstoneLen;
+            return key;
+        }
+    };
+
+    inline bool operator==(const ClOrdMapKey& lhs, const ClOrdMapKey& rhs) noexcept {
+        if (lhs.len != rhs.len) {
+            return false;
+        }
+        if (lhs.len == ClOrdMapKey::kEmptyLen || lhs.len == ClOrdMapKey::kTombstoneLen) {
+            return true;
+        }
+        for (size_t i = 0; i < lhs.len; ++i) {
+            if (lhs.bytes[i] != rhs.bytes[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static_assert(kOrderStateTextMaxLen < ClOrdMapKey::kTombstoneLen,
+                  "cl_ord_id key length must leave room for tombstone sentinel");
+
+    struct ClOrdMapKeyHash {
+        size_t operator()(const ClOrdMapKey& key) const noexcept {
+            if (key.len == ClOrdMapKey::kEmptyLen) {
+                return 0x9e3779b97f4a7c15ull;
+            }
+            if (key.len == ClOrdMapKey::kTombstoneLen) {
+                return 0xc2b2ae3d27d4eb4full;
+            }
+            return std::hash<std::string_view>{}(std::string_view(key.bytes.data(), key.len));
+        }
+    };
+
     class FixGateway {
         struct ClientTrafficStats {
             uint64_t received_from_client{0};
@@ -47,8 +97,8 @@ namespace jolt::gateway {
         ExchToGtwy exch_gtwy_;
         LockFreeQueue<ExchToGtwyMsg, 1 << 20> exchange_events_;
         ob::FlatMap<uint64_t, ClientInfo> client_infos_;
-        std::unordered_map<std::string, OrderState*> order_states_;
-        std::unordered_map<uint64_t, OrderState*> order_id_to_state_;
+        ob::FlatMap<ClOrdMapKey, uint64_t, ClOrdMapKeyHash> cl_ord_id_to_order_id_;
+        SlabPool<OrderState> order_state_pool_;
         uint64_t next_order_id_{1};
         uint64_t next_exec_id_{1};
         EventLoop event_loop_;

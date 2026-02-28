@@ -1,0 +1,5 @@
+# Hashes of file build rules.
+51cc8ef2f5694a13c4dbcaaf0b79a0a6 bench_autogen/timestamp
+9a49dac14376947ad195cee82a4c2926 jolt_autogen/timestamp
+c1f05ef40b99b6bc8077f2d12bf29b10 orderbook_tests_autogen/timestamp
+a7d4d20a3dc481a82bdbb5e88ef6c8db rt_view_autogen/timestamp

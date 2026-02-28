@@ -21,7 +21,7 @@ namespace jolt::ob {
     inline std::size_t next(std::size_t i, std::size_t mask) { return (i + 1) & mask; }
     inline std::size_t diff(std::size_t a, std::size_t b, std::size_t mask) { return (mask + 1 + a - b) & mask; }
 
-    template <typename KeyT, typename ValueT>
+    template <typename KeyT, typename ValueT, typename HashT = std::hash<KeyT>>
     class FlatMap {
         struct Bucket {
             KeyT key;
@@ -31,7 +31,7 @@ namespace jolt::ob {
         KeyT empty_key_{};
         KeyT tombstone_key_{};
         float max_load_{};
-        std::hash<KeyT> hasher_{};
+        HashT hasher_{};
         std::vector<Bucket> buckets_{};
         std::size_t size_{0};
 
@@ -65,12 +65,17 @@ namespace jolt::ob {
               buckets_(round_up_pow2(capacity), Bucket{empty_key_, ValueT{}}) {
         }
 
+        FlatMap(std::size_t capacity, const KeyT& empty_key, const KeyT& tombstone_key, float max_load)
+            : empty_key_(empty_key), tombstone_key_(tombstone_key), max_load_(max_load), hasher_(),
+              buckets_(round_up_pow2(capacity), Bucket{empty_key_, ValueT{}}) {
+        }
+
         bool empty() const noexcept { return size_ == 0; }
         std::size_t size() const noexcept { return size_; }
         std::size_t capacity() const noexcept { return buckets_.size(); }
 
         std::pair<ValueT&, bool> insert(const KeyT& key, const ValueT& value) {
-            assert(key != empty_key_ && "key collides with sentinel");
+            assert(key != empty_key_ && key != tombstone_key_ && "key collides with sentinel");
             reserve_if_needed(size_ + 1);
             const std::size_t mask = buckets_.size() - 1;
             std::size_t idx = hasher_(key) & mask;
@@ -95,7 +100,9 @@ namespace jolt::ob {
         }
 
         ValueT* find(const KeyT& key) noexcept {
-            if (key == empty_key_) return nullptr;
+            if (key == empty_key_ || key == tombstone_key_) {
+                return nullptr;
+            }
             const std::size_t mask = buckets_.size() - 1;
             std::size_t idx = hasher_(key) & mask;
             for (;;) {
@@ -110,7 +117,9 @@ namespace jolt::ob {
         }
 
         const ValueT* find(const KeyT& key) const noexcept {
-            if (key == empty_key_) return nullptr;
+            if (key == empty_key_ || key == tombstone_key_) {
+                return nullptr;
+            }
             const std::size_t mask = buckets_.size() - 1;
             std::size_t idx = hasher_(key) & mask;
             for (;;) {
@@ -125,7 +134,9 @@ namespace jolt::ob {
         }
 
         std::size_t erase(const KeyT& key) noexcept {
-            if (key == empty_key_) return 0;
+            if (key == empty_key_ || key == tombstone_key_) {
+                return 0;
+            }
             const std::size_t mask = buckets_.size() - 1;
             std::size_t idx = hasher_(key) & mask;
             for (;;) {

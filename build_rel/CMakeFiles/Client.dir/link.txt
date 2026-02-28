@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/Client.dir/link.d CMakeFiles/Client.dir/client/ClientMain.cpp.o CMakeFiles/Client.dir/client/OrderClient.cpp.o CMakeFiles/Client.dir/client/FixClient.cpp.o -o Client

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -g -march=native -flto -ffast-math -funroll-loops -mavx2 -fno-omit-frame-pointer -Wl,--dependency-file=CMakeFiles/simulation_integrity_tests.dir/link.d CMakeFiles/simulation_integrity_tests.dir/tests/simulation_integrity_tests.cpp.o -o simulation_integrity_tests

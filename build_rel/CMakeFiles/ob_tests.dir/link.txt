@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -flto=auto -fno-fat-lto-objects -Wl,--dependency-file=CMakeFiles/ob_tests.dir/link.d CMakeFiles/ob_tests.dir/tests/orderbook_tests.cpp.o -o ob_tests

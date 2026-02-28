@@ -70,6 +70,7 @@ namespace jolt::exchange {
         SnapshotBlob snapshot_pool_;
         SnapshotMetaQ snapshot_meta;
         RequestQ requests_;
+        uint32_t risk_poll_tick_{0};
         ob::FlatMap<uint64_t, ClientInfo> clients_;
         L3DataWriter writer_;
         DayTicker day_ticker_;

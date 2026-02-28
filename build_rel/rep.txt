@@ -1,0 +1,863 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 7
+#
+# Samples: 12K of event 'cycles:Pu'
+# Event count (approx.): 45696292282
+#
+# Children      Self  Command   Shared Object         Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+# ........  ........  ........  ....................  .......................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+    95.88%     0.00%  Exchange  Exchange              [.] _start
+            |
+            ---_start
+               __libc_start_main@@GLIBC_2.34
+               __libc_start_call_main
+               main
+               |          
+               |--11.92%--jolt::exchange::Exchange::poll_once() (inlined)
+               |          |          
+               |          |--8.61%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+               |          |          |          
+               |          |           --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          |          
+               |           --2.07%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+               |                     |          
+               |                      --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--3.96%--jolt::exchange::Exchange::poll_requests() (inlined)
+               |          drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+               |          |          
+               |           --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--1.32%--_mm_pause() (inlined)
+               |          
+                --1.21%--std::atomic<bool>::load(std::memory_order) const (inlined)
+                          std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+    95.88%     0.00%  Exchange  libc.so.6             [.] __libc_start_main@@GLIBC_2.34
+            |
+            ---__libc_start_main@@GLIBC_2.34
+               __libc_start_call_main
+               main
+               |          
+               |--11.92%--jolt::exchange::Exchange::poll_once() (inlined)
+               |          |          
+               |          |--8.61%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+               |          |          |          
+               |          |           --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          |          
+               |           --2.07%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+               |                     |          
+               |                      --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--3.96%--jolt::exchange::Exchange::poll_requests() (inlined)
+               |          drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+               |          |          
+               |           --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--1.32%--_mm_pause() (inlined)
+               |          
+                --1.21%--std::atomic<bool>::load(std::memory_order) const (inlined)
+                          std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+    95.88%     0.00%  Exchange  libc.so.6             [.] __libc_start_call_main
+            |
+            ---__libc_start_call_main
+               main
+               |          
+               |--11.92%--jolt::exchange::Exchange::poll_once() (inlined)
+               |          |          
+               |          |--8.61%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+               |          |          |          
+               |          |           --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          |          
+               |           --2.07%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+               |                     |          
+               |                      --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--3.96%--jolt::exchange::Exchange::poll_requests() (inlined)
+               |          drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+               |          |          
+               |           --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+               |--1.32%--_mm_pause() (inlined)
+               |          
+                --1.21%--std::atomic<bool>::load(std::memory_order) const (inlined)
+                          std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+    95.88%    95.39%  Exchange  Exchange              [.] main
+            |          
+             --95.39%--_start
+                       __libc_start_main@@GLIBC_2.34
+                       __libc_start_call_main
+                       main
+                       |          
+                       |--11.91%--jolt::exchange::Exchange::poll_once() (inlined)
+                       |          |          
+                       |          |--8.61%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+                       |          |          |          
+                       |          |           --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+                       |          |          
+                       |           --2.06%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+                       |                     |          
+                       |                      --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+                       |          
+                       |--3.95%--jolt::exchange::Exchange::poll_requests() (inlined)
+                       |          drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+                       |          |          
+                       |           --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+                       |          
+                       |--1.32%--_mm_pause() (inlined)
+                       |          
+                        --1.21%--std::atomic<bool>::load(std::memory_order) const (inlined)
+                                  std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+    11.92%     0.00%  Exchange  Exchange              [.] jolt::exchange::Exchange::poll_once() (inlined)
+            |
+            ---jolt::exchange::Exchange::poll_once() (inlined)
+               |          
+               |--8.61%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+               |          |          
+               |           --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+               |          
+                --2.07%--drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+                          |          
+                           --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     8.61%     0.00%  Exchange  Exchange              [.] drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+            |
+            ---drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::RiskToExchMsg&)> > (inlined)
+               |          
+                --5.03%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     7.95%     0.00%  Exchange  Exchange              [.] std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+            |
+            ---std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     4.13%     0.27%  Exchange  Exchange              [.] jolt::exchange::Exchange::handle_order(jolt::ob::OrderParams const&)
+            |          
+             --4.12%--jolt::exchange::Exchange::handle_order(jolt::ob::OrderParams const&)
+                       |          
+                       |--2.41%--jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+                       |          |          
+                       |          |--1.44%--jolt::ob::MatchingOrderBook<128ul>::submit_limit(jolt::ob::OrderParams const&)
+                       |          |          |          
+                       |          |           --1.03%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+                       |          |                     |          
+                       |          |                      --0.82%--jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+                       |          |                                jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+                       |          |          
+                       |           --0.72%--jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+                       |                     |          
+                       |                      --0.57%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+                       |          
+                        --1.30%--jolt::exchange::Exchange::update_risk(jolt::ExchangeToRiskMsg const&) (inlined)
+                                  bool SharedSpscQueue<jolt::ExchangeToRiskMsg, 32768ul>::enqueue<jolt::ExchangeToRiskMsg const&>(jolt::ExchangeToRiskMsg const&) (inlined)
+                                  |          
+                                   --1.29%--__memmove_avx_unaligned_erms
+                                             |          
+                                              --1.19%--0xffffffff8ec012a6
+                                                        |          
+                                                         --1.11%--0xffffffff901a32ce
+                                                                   |          
+                                                                    --1.02%--0xffffffff8ef8604a
+                                                                              |          
+                                                                               --0.90%--0xffffffff8f316cd1
+                                                                                         |          
+                                                                                          --0.87%--0xffffffff8f316a61
+                                                                                                    |          
+                                                                                                     --0.83%--0xffffffff8f310e29
+
+     3.96%     0.00%  Exchange  Exchange              [.] jolt::exchange::Exchange::poll_requests() (inlined)
+            |
+            ---jolt::exchange::Exchange::poll_requests() (inlined)
+               drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+               |          
+                --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     3.96%     0.00%  Exchange  Exchange              [.] drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+            |
+            ---drain<jolt::exchange::Exchange::poll_requests()::<lambda(const jolt::md::DataRequest&)> > (inlined)
+               |          
+                --1.55%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     2.41%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+            |
+            ---jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+               |          
+               |--1.44%--jolt::ob::MatchingOrderBook<128ul>::submit_limit(jolt::ob::OrderParams const&)
+               |          |          
+               |           --1.03%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+               |                     |          
+               |                      --0.82%--jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+               |                                jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+               |          
+                --0.72%--jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+                          |          
+                           --0.57%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+
+     2.07%     0.00%  Exchange  Exchange              [.] drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+            |
+            ---drain<jolt::exchange::Exchange::poll_once()::<lambda(const jolt::GtwyToExchMsg&)> > (inlined)
+               |          
+                --1.37%--std::__atomic_base<unsigned long>::load(std::memory_order) const (inlined)
+
+     1.60%     0.54%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+            |          
+            |--1.07%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+            |          jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+            |          jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+            |          
+             --0.54%--jolt::exchange::Exchange::handle_order(jolt::ob::OrderParams const&)
+                       jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+
+     1.59%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec012a6
+            |
+            ---0xffffffff8ec012a6
+               |          
+                --1.50%--0xffffffff901a32ce
+                          |          
+                           --1.41%--0xffffffff8ef8604a
+                                     |          
+                                      --1.29%--0xffffffff8f316cd1
+                                                |          
+                                                 --1.26%--0xffffffff8f316a61
+                                                           |          
+                                                            --0.83%--0xffffffff8f310e29
+
+     1.50%     0.01%  Exchange  [unknown]             [.] 0xffffffff901a32ce
+            |          
+             --1.49%--0xffffffff901a32ce
+                       |          
+                        --1.41%--0xffffffff8ef8604a
+                                  |          
+                                   --1.29%--0xffffffff8f316cd1
+                                             |          
+                                              --1.26%--0xffffffff8f316a61
+                                                        |          
+                                                         --0.83%--0xffffffff8f310e29
+
+     1.46%     0.06%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::submit_limit(jolt::ob::OrderParams const&)
+            |          
+             --1.39%--jolt::ob::MatchingOrderBook<128ul>::submit_limit(jolt::ob::OrderParams const&)
+                       |          
+                        --1.02%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+                                  |          
+                                   --0.81%--jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+                                             jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+
+     1.41%     0.01%  Exchange  [unknown]             [.] 0xffffffff8ef8604a
+            |          
+             --1.41%--0xffffffff8ef8604a
+                       |          
+                        --1.29%--0xffffffff8f316cd1
+                                  |          
+                                   --1.26%--0xffffffff8f316a61
+                                             |          
+                                              --0.83%--0xffffffff8f310e29
+
+     1.36%     0.11%  Exchange  libc.so.6             [.] __memmove_avx_unaligned_erms
+            |          
+             --1.25%--__memmove_avx_unaligned_erms
+                       |          
+                        --1.19%--0xffffffff8ec012a6
+                                  |          
+                                   --1.11%--0xffffffff901a32ce
+                                             |          
+                                              --1.02%--0xffffffff8ef8604a
+                                                        |          
+                                                         --0.90%--0xffffffff8f316cd1
+                                                                   |          
+                                                                    --0.87%--0xffffffff8f316a61
+                                                                              |          
+                                                                               --0.83%--0xffffffff8f310e29
+
+     1.32%     0.00%  Exchange  Exchange              [.] _mm_pause() (inlined)
+            |
+            ---_mm_pause() (inlined)
+
+     1.30%     0.00%  Exchange  Exchange              [.] jolt::exchange::Exchange::update_risk(jolt::ExchangeToRiskMsg const&) (inlined)
+            |
+            ---jolt::exchange::Exchange::update_risk(jolt::ExchangeToRiskMsg const&) (inlined)
+               bool SharedSpscQueue<jolt::ExchangeToRiskMsg, 32768ul>::enqueue<jolt::ExchangeToRiskMsg const&>(jolt::ExchangeToRiskMsg const&) (inlined)
+               |          
+                --1.29%--__memmove_avx_unaligned_erms
+                          |          
+                           --1.19%--0xffffffff8ec012a6
+                                     |          
+                                      --1.11%--0xffffffff901a32ce
+                                                |          
+                                                 --1.02%--0xffffffff8ef8604a
+                                                           |          
+                                                            --0.90%--0xffffffff8f316cd1
+                                                                      |          
+                                                                       --0.87%--0xffffffff8f316a61
+                                                                                 |          
+                                                                                  --0.83%--0xffffffff8f310e29
+
+     1.30%     0.00%  Exchange  Exchange              [.] bool SharedSpscQueue<jolt::ExchangeToRiskMsg, 32768ul>::enqueue<jolt::ExchangeToRiskMsg const&>(jolt::ExchangeToRiskMsg const&) (inlined)
+            |
+            ---bool SharedSpscQueue<jolt::ExchangeToRiskMsg, 32768ul>::enqueue<jolt::ExchangeToRiskMsg const&>(jolt::ExchangeToRiskMsg const&) (inlined)
+               |          
+                --1.29%--__memmove_avx_unaligned_erms
+                          |          
+                           --1.19%--0xffffffff8ec012a6
+                                     |          
+                                      --1.11%--0xffffffff901a32ce
+                                                |          
+                                                 --1.02%--0xffffffff8ef8604a
+                                                           |          
+                                                            --0.90%--0xffffffff8f316cd1
+                                                                      |          
+                                                                       --0.87%--0xffffffff8f316a61
+                                                                                 |          
+                                                                                  --0.83%--0xffffffff8f310e29
+
+     1.29%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f316cd1
+            |
+            ---0xffffffff8f316cd1
+               |          
+                --1.26%--0xffffffff8f316a61
+                          |          
+                           --0.83%--0xffffffff8f310e29
+
+     1.26%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f316a61
+            |
+            ---0xffffffff8f316a61
+               |          
+                --0.83%--0xffffffff8f310e29
+
+     1.25%     0.85%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+            |          
+             --0.85%--jolt::exchange::Exchange::handle_order(jolt::ob::OrderParams const&)
+                       jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+                       |          
+                        --0.55%--jolt::ob::MatchingOrderBook<128ul>::submit_limit(jolt::ob::OrderParams const&)
+                                  jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+                                  jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+                                  jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+
+     1.25%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+            |
+            ---jolt::ob::MatchingOrderBook<128ul>::on_trade_last(unsigned int, unsigned long) (inlined)
+               jolt::ob::MatchingOrderBook<128ul>::drain_stops_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+               |          
+                --0.60%--jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+
+     1.21%     0.00%  Exchange  Exchange              [.] std::atomic<bool>::load(std::memory_order) const (inlined)
+            |
+            ---std::atomic<bool>::load(std::memory_order) const (inlined)
+               std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+     1.21%     0.00%  Exchange  Exchange              [.] std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+            |
+            ---std::__atomic_base<bool>::load(std::memory_order) const (inlined)
+
+     0.83%     0.01%  Exchange  [unknown]             [.] 0xffffffff8f310e29
+            |          
+             --0.83%--0xffffffff8f310e29
+
+     0.72%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+            |
+            ---jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+               |          
+                --0.57%--jolt::ob::MatchingOrderBook<128ul>::match_aggressive(unsigned long, jolt::ob::Side, unsigned int, unsigned int, unsigned long, bool) [clone .constprop.0]
+
+     0.63%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::head_slot() (inlined)
+            |
+            ---jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::head_slot() (inlined)
+               jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::skip_dead_slots() (inlined)
+
+     0.63%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::skip_dead_slots() (inlined)
+            |
+            ---jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::skip_dead_slots() (inlined)
+
+     0.61%     0.61%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::drain_tps_range(jolt::ob::Side, unsigned int, unsigned int, unsigned long)
+            |
+            ---jolt::exchange::Exchange::handle_order(jolt::ob::OrderParams const&)
+               jolt::ob::MatchingOrderBook<128ul>::submit_order(jolt::ob::OrderParams const&) (inlined)
+
+     0.60%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+            |
+            ---jolt::ob::MatchingOrderBook<128ul>::submit_market(jolt::ob::OrderParams const&) (inlined)
+
+     0.52%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::on_level_clear(jolt::ob::Side, unsigned long) (inlined)
+            |
+            ---jolt::ob::MatchingOrderBook<128ul>::on_level_clear(jolt::ob::Side, unsigned long) (inlined)
+
+     0.47%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::TpSlot, 128ul>::head_slot() (inlined)
+     0.47%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::TpSlot, 128ul>::skip_dead_slots() (inlined)
+     0.41%     0.03%  Exchange  Exchange              [.] jolt::exchange::Exchange::Exchange(unsigned int, unsigned int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) [clone .constprop.0]
+     0.41%     0.00%  Exchange  Exchange              [.] std::__detail::_MakeUniq<jolt::ob::MatchingOrderBook<128ul> >::__single_object std::make_unique<jolt::ob::MatchingOrderBook<128ul>, unsigned int&, unsigned int&>(unsigned int&, unsigned int&) (inlined)
+     0.41%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::MatchingOrderBook(unsigned int, unsigned int) (inlined)
+     0.39%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314ea8
+     0.37%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket> >::vector(unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket> const&) (inlined)
+     0.37%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket> >::_M_fill_initialize(unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&) (inlined)
+     0.37%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket* std::__uninitialized_fill_n_a<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket>&) (inlined)
+     0.37%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket* std::uninitialized_fill_n<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&) (inlined)
+     0.37%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket* std::__do_uninit_fill_n<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&) (inlined)
+     0.37%     0.00%  Exchange  Exchange              [.] void std::_Construct<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&>(jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket*, jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket const&) (inlined)
+     0.36%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f310cd2
+     0.33%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f38b446
+     0.32%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f38e67e
+     0.32%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314b29
+     0.32%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f34c84b
+     0.29%     0.27%  Exchange  libc.so.6             [.] __memset_avx2_unaligned_erms
+     0.28%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f310c7d
+     0.28%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f30fdf4
+     0.25%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f2db2af
+     0.23%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f2dacd0
+     0.22%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::FlatMap(unsigned long, unsigned long, float) (inlined)
+     0.19%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f310761
+     0.18%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::reserve(unsigned long) (inlined)
+     0.18%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::rehash(unsigned long) (inlined)
+     0.17%     0.06%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::submit_stop(jolt::ob::OrderParams const&)
+     0.17%     0.01%  Exchange  [unknown]             [.] 0xffffffff8f310ce8
+     0.15%     0.01%  Exchange  [unknown]             [.] 0xffffffff8f34b26c
+     0.14%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f34b508
+     0.13%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3461f9
+     0.13%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::OrderSlot, 128ul>::Loc jolt::ob::Fifo<jolt::ob::OrderSlot, 128ul>::emplace<unsigned long const&, unsigned long, unsigned int&, unsigned int&, unsigned long const&, unsigned int const&>(unsigned long const&, unsigned long&&, unsigned int&, unsigned int&, unsigned long const&, unsigned int const&) (inlined)
+     0.13%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::level_of(jolt::ob::Side, unsigned int, bool) const (inlined)
+     0.12%     0.12%  Exchange  [unknown]             [k] 0xffffffff8f2a7c89
+     0.12%     0.03%  Exchange  Exchange              [.] jolt::ob::BlockPool<jolt::ob::Block<jolt::ob::StopSlot, 128ul> >::acquire()
+     0.12%     0.12%  Exchange  [unknown]             [k] 0xffffffff901974db
+     0.12%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::OrderSlot, 128ul>::allocate_block() (inlined)
+     0.12%     0.00%  Exchange  Exchange              [.] jolt::ob::BlockPool<jolt::ob::Block<jolt::ob::OrderSlot, 128ul> >::acquire() (inlined)
+     0.12%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::Loc jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::emplace<unsigned long const&, unsigned long, unsigned int const&, unsigned int const&, jolt::ob::OrderType&, unsigned int const&, jolt::ob::TIF const&, unsigned long const&>(unsigned long const&, unsigned long&&, unsigned int const&, unsigned int const&, jolt::ob::OrderType&, unsigned int const&, jolt::ob::TIF const&, unsigned long const&) (inlined)
+     0.12%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::allocate_block() (inlined)
+     0.10%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f310392
+     0.10%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f32b9fb
+     0.09%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::level_of(jolt::ob::Side, unsigned int, bool) const (inlined)
+     0.08%     0.00%  Exchange  Exchange              [.] jolt::exchange::Exchange::publish_exchange_msg(jolt::ExchToGtwyMsg const&) (inlined)
+     0.08%     0.00%  Exchange  Exchange              [.] bool SharedSpscQueue<jolt::ExchToGtwyMsg, 1048576ul>::enqueue<jolt::ExchToGtwyMsg const&>(jolt::ExchToGtwyMsg const&) (inlined)
+     0.07%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f2a7c60
+     0.06%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::L3Data, std::allocator<jolt::ob::L3Data> >::push_back(jolt::ob::L3Data const&) (inlined)
+     0.06%     0.00%  Exchange  Exchange              [.] void std::allocator_traits<std::allocator<jolt::ob::L3Data> >::construct<jolt::ob::L3Data, jolt::ob::L3Data const&>(std::allocator<jolt::ob::L3Data>&, jolt::ob::L3Data*, jolt::ob::L3Data const&) (inlined)
+     0.06%     0.00%  Exchange  Exchange              [.] _ZSt12construct_atIN4jolt2ob6L3DataEJRKS2_EQaant20is_unbounded_array_vIT_ErqXgsnwcvPvLi0E_S5_pispcl7declvalIT0_EEEEEPS5_S8_DpOS7_ (inlined)
+     0.06%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::get_snapshot(jolt::ob::BookSnapshot&) (inlined)
+     0.06%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f34950c
+     0.06%     0.06%  Exchange  [unknown]             [k] 0xffffffff8ec01280
+     0.06%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::insert(unsigned long const&, jolt::ob::MatchingOrderBook<128ul>::Locator const&) (inlined)
+     0.05%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314b43
+     0.04%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f306d9f
+     0.04%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef86009
+     0.04%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec0160a
+     0.04%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::side_index(jolt::ob::Side, unsigned int) const (inlined)
+     0.04%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::cancel(jolt::ob::OrderParams const&) (inlined)
+     0.04%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::cancel(unsigned long) (inlined)
+     0.04%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f316e03
+     0.03%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a2888
+     0.03%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c9780
+     0.03%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::modify(jolt::ob::OrderParams const&) (inlined)
+     0.03%     0.02%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::modify(unsigned long, unsigned int, unsigned int, jolt::ob::TIF, unsigned long) [clone .isra.0]
+     0.03%     0.03%  Exchange  [unknown]             [k] 0xffffffff901a32cf
+     0.03%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::find(unsigned long const&) (inlined)
+     0.03%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f306d83
+     0.03%     0.03%  Exchange  [unknown]             [k] 0xffffffff8f3c3b0d
+     0.03%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f42a9e8
+     0.03%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef60dd8
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3c0745
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f316dec
+     0.02%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::find(unsigned long const&) (inlined)
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f34803b
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a388c
+     0.02%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::insert(unsigned long const&, jolt::ob::MatchingOrderBook<128ul>::Locator const&) (inlined)
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f42a6de
+     0.02%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::side_index(jolt::ob::Side, unsigned int) const (inlined)
+     0.02%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::ask_index(unsigned int) const (inlined)
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3086ca
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f305429
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f316cd4
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff90193e6d
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f310361
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f306da2
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f306d86
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3107df
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff90193e43
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8ed0410b
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3107b2
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8ec015f0
+     0.02%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::bid_index(unsigned int) const (inlined)
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d144c
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d0633
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c8448
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8ec01284
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3167b4
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3c60ce
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3107f1
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f0bd056
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f0d6500
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f2a7c99
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f31079d
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f3c3b05
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f310cd4
+     0.02%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f31631d
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f328c99
+     0.02%     0.02%  Exchange  [unknown]             [k] 0xffffffff8f2b0bb6
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f310765
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f310e2f
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff9019f5e2
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec0128d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2db2b0
+     0.01%     0.00%  Exchange  Exchange              [.] jolt::ob::MatchingOrderBook<128ul>::ask_index(unsigned int) const (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2dacd5
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0a4a38
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c3b35
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f306d8a
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f09f147
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f30541f
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3bf3ef
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314b76
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3765ca
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f308696
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff90193e33
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901a3294
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f348dd5
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f347d29
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f310cea
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f34804d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ed04104
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ed04110
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901b3ded
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3494d3
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f7ce3f2
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c5fd8
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901a3837
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a285e
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0ed9fc
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0e871c
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d63fc
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d3bf0
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d31c1
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0edbaf
+     0.01%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::Bucket> >::operator[](unsigned long) (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef60d84
+     0.01%     0.00%  Exchange  Exchange              [.] operator() (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0d677b
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0d13d5
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3108d5
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f34950f
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ec015f4
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3102f3
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f316bfc
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff90171e4d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c3ab0
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f306d1d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3108d3
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f316613
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef797a4
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0bd05d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff90193e14
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3166ff
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f89567b
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f306d05
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0e8614
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff9019319e
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff90193e21
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f310423
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3102bf
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f31078a
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef8604e
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f316321
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2a7c8b
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f113828
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c6086
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f328d89
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2b076c
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f94495e
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c5ff7
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0d64f4
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c3adb
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901a3254
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901a32e8
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f31054d
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f31035e
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3109bf
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2a7c56
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f1137e4
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c3777
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef85e42
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef85ef7
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2b0b95
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f42aa0a
+     0.01%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ob::MatchingOrderBook<128ul>::Locator>::erase(unsigned long const&) (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff901a387c
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2e01b3
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c3b25
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f31074b
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0a4a24
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f2a7cf1
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef86182
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f348046
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c3b18
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ef86198
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8ec01298
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2db2f1
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3107f5
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f310572
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3289f3
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f328d01
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0a4a31
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f316e08
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c37c1
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c3b11
+     0.01%     0.00%  Exchange  Exchange              [.] std::__atomic_base<unsigned long>::store(unsigned long, std::memory_order) (inlined)
+     0.01%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::BookEvent, std::allocator<jolt::ob::BookEvent> >::push_back(jolt::ob::BookEvent const&) (inlined)
+     0.01%     0.00%  Exchange  Exchange              [.] void std::allocator_traits<std::allocator<jolt::ob::BookEvent> >::construct<jolt::ob::BookEvent, jolt::ob::BookEvent const&>(std::allocator<jolt::ob::BookEvent>&, jolt::ob::BookEvent*, jolt::ob::BookEvent const&) (inlined)
+     0.01%     0.00%  Exchange  Exchange              [.] _ZSt12construct_atIN4jolt2ob9BookEventEJRKS2_EQaant20is_unbounded_array_vIT_ErqXgsnwcvPvLi0E_S5_pispcl7declvalIT0_EEEEEPS5_S8_DpOS7_ (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3053ff
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f0a4a20
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f316d1b
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f42a9b6
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f306d96
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3486a7
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f42a6e2
+     0.01%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::append(jolt::ob::StopSlot const&) (inlined)
+     0.01%     0.00%  Exchange  Exchange              [.] jolt::ob::Fifo<jolt::ob::StopSlot, 128ul>::allocate_block() (inlined)
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff90171f10
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f2db234
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c600b
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f34b19a
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff90171e6e
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3107e3
+     0.01%     0.00%  Exchange  libc.so.6             [.] __posix_memalign
+     0.01%     0.00%  Exchange  libc.so.6             [.] malloc
+     0.01%     0.00%  Exchange  libc.so.6             [.] _int_malloc
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c60d4
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffffc0f391a4
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec01566
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff9019faa2
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef1bbdc
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f087945
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f081be8
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f081995
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffffc0e01e59
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffffc0f4ece1
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffffc0f77936
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffffc0f76d8a
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f3c845a
+     0.01%     0.01%  Exchange  [unknown]             [k] 0xffffffff8f34b26f
+     0.01%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f348201
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f7ce3d7
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b4f8
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348bc7
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34c89b
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c976e
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c9782
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c9772
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f8956bb
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f0a4a3a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f328cf3
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314f32
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3484d5
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34807c
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348bca
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c843d
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3494d0
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f310790
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f30fe6a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef882ad
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f38b989
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901b4460
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f306d00
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f316d93
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347ef3
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f316707
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c8431
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b50a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901b3d82
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f347fec
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34805c
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f347ef1
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348182
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3461e5
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901b446c
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3494c3
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34803e
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b298
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f069602
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348daf
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::FlatMap(unsigned long, unsigned long, float) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket> >::vector(unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket> const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket> >::_M_fill_initialize(unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket* std::__uninitialized_fill_n_a<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&, std::allocator<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket>&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket* std::uninitialized_fill_n<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket* std::__do_uninit_fill_n<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket>(jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, unsigned long, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] void std::_Construct<jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&>(jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket*, jolt::ob::FlatMap<unsigned long, jolt::ClientInfo>::Bucket const&) (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3bf411
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c39a5
+     0.00%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::Level<128ul>*, std::allocator<jolt::ob::Level<128ul>*> >::vector(unsigned long, jolt::ob::Level<128ul>* const&, std::allocator<jolt::ob::Level<128ul>*> const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::vector<jolt::ob::Level<128ul>*, std::allocator<jolt::ob::Level<128ul>*> >::_M_fill_initialize(unsigned long, jolt::ob::Level<128ul>* const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::Level<128ul>** std::__uninitialized_fill_n_a<jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>*, jolt::ob::Level<128ul>*>(jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>* const&, std::allocator<jolt::ob::Level<128ul>*>&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::Level<128ul>** std::uninitialized_fill_n<jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>*>(jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>* const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::ob::Level<128ul>** std::__do_uninit_fill_n<jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>*>(jolt::ob::Level<128ul>**, unsigned long, jolt::ob::Level<128ul>* const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] void std::_Construct<jolt::ob::Level<128ul>*, jolt::ob::Level<128ul>* const&>(jolt::ob::Level<128ul>**, jolt::ob::Level<128ul>* const&) (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c39be
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348206
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f09f14a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c8456
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901b4476
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c844a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c7a94
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c842f
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348069
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f069603
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34822a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34697c
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f348dd2
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f346bde
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff90171e6a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34723f
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3486aa
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b2b0
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f346268
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3c39e5
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347d1d
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f06960b
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34869a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348b40
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f346166
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3481fc
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34617b
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3461e9
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34615e
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3480da
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347d3a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348662
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901b3df6
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348e45
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348e52
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b27f
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f349115
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3461ed
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3461ba
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348b46
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347fc1
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b115
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3484f2
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347db7
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c8405
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347cef
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34b1bc
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348b3c
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f347d80
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _start
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_start
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_start_final (inlined)
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_sysdep_start
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] dl_main
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] do_lookup_x
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_lookup_symbol_x
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_relocate_object
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_relocate_object_no_relro
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] elf_dynamic_do_Rela (inlined)
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] elf_machine_rela (inlined)
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] resolve_map (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3c975a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3165f6
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff9017862f
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] setup_vdso (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef85f56
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f305a22
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f31b8ef
+     0.00%     0.00%  Exchange  libc.so.6             [.] __GI___clone3
+     0.00%     0.00%  Exchange  libc.so.6             [.] start_thread
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_runtime_resolve_xsavec
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] _dl_fixup
+     0.00%     0.00%  Exchange  libstdc++.so.6.0.34   [.] execute_native_thread_routine
+     0.00%     0.00%  Exchange  Exchange              [.] jolt::exchange::DayTicker::run()
+     0.00%     0.00%  Exchange  Exchange              [.] wait_until<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1, 1000000000> >, jolt::exchange::DayTicker::run()::<lambda()> > (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::cv_status std::condition_variable::wait_until<std::chrono::duration<long, std::ratio<1l, 1000000000l> > >(std::unique_lock<std::mutex>&, std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long, std::ratio<1l, 1000000000l> > > const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::cv_status std::condition_variable::__wait_until_impl<std::chrono::duration<long, std::ratio<1l, 1000000000l> > >(std::unique_lock<std::mutex>&, std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long, std::ratio<1l, 1000000000l> > > const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::__condvar::wait_until(std::mutex&, timespec&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] __gthread_cond_timedwait(pthread_cond_t*, pthread_mutex_t*, timespec const*) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] void std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::_M_construct<true>(char const*, unsigned long)
+     0.00%     0.00%  Exchange  Exchange              [.] SharedSpscQueue<jolt::GtwyToExchMsg, 1048576ul>::SharedSpscQueue(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, SharedRingMode, SharedRingOptions const&) (inlined)
+     0.00%     0.00%  Exchange  Exchange              [.] std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec0172a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a0468
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ef2113c
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f1d4c88
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] __GI___tunables_init
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] get_next_env (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f1d4c23
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f28c5aa
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f28a2e8
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f05bc06
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0532e2
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f41eef7
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f018510
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0118e2
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f04f2c0
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f00c823
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f02d0b5
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f0185ba
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f019b76
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f02cfd9
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f1d4c37
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f069622
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f018424
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f310c50
+     0.00%     0.00%  Exchange  Exchange              [.] std::__detail::_MakeUniq<SharedSpscQueue<jolt::md::DataRequest, 256ul> >::__single_object std::make_unique<SharedSpscQueue<jolt::md::DataRequest, 256ul>, char const* const&, SharedRingMode>(char const* const&, SharedRingMode&&) [clone .constprop.0] [clone .isra.0]
+     0.00%     0.00%  Exchange  Exchange              [.] SharedSpscQueue<jolt::md::DataRequest, 256ul>::SharedSpscQueue(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, SharedRingMode, SharedRingOptions const&) [clone .constprop.0]
+     0.00%     0.00%  Exchange  libc.so.6             [.] __ftruncate64
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8ec0008f
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f34c6c0
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f31682a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f05329a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec0012f
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8ec0164a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a3959
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff901aa3b7
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff901a9d3c
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f00ca9a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f053484
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f348001
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f31668e
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f314b7f
+     0.00%     0.00%  Exchange  ld-linux-x86-64.so.2  [.] rtld_timer_start (inlined)
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f310edc
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f306fe4
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f0bd1d8
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff9019c9b2
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f6e6de4
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff9019c88e
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3f946a
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3f9400
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3f92ed
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f3f8bc1
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f42c202
+     0.00%     0.00%  Exchange  libc.so.6             [.] name_stack_maps
+     0.00%     0.00%  Exchange  libc.so.6             [.] __GI___snprintf
+     0.00%     0.00%  Exchange  libc.so.6             [.] __vsnprintf_internal
+     0.00%     0.00%  Exchange  libc.so.6             [.] __printf_buffer
+     0.00%     0.00%  Exchange  libc.so.6             [.] __printf_buffer_write
+     0.00%     0.00%  Exchange  libc.so.6             [.] __strchrnul_avx2
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f38e596
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3289ff
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f314940
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff901a4edf
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f28a2ba
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f328c2a
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f053498
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8ec00116
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3053f7
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f316761
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f328c42
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff90171e14
+     0.00%     0.00%  Exchange  [unknown]             [k] 0xffffffff8f3162ff
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f314e8d
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f30ee86
+     0.00%     0.00%  Exchange  libc.so.6             [.] shm_open@GLIBC_2.2.5
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f32e214
+     0.00%     0.00%  Exchange  libc.so.6             [.] __open64_nocancel
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f328c3f
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f365e7b
+     0.00%     0.00%  Exchange  [unknown]             [.] 0xffffffff8f38e661
+
+
+#
+# (Tip: To trace only single function with Processor Trace use perf record --filter 'filter func @ program' -e intel_pt//u ./program ; perf script --insn-trace)
+#

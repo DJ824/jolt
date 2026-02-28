@@ -1,0 +1,1037 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cycles:Pu'
+# Event count (approx.): 10967821849
+#
+# Children      Self  Command       Shared Object         Symbol                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+# ........  ........  ............  ....................  ........................................................................................................................................................................................................................................................................................................................................................................................................................................................
+#
+    99.05%     0.00%  EntryGateway  libc.so.6             [.] __GI___clone3
+            |
+            ---__GI___clone3
+               |          
+                --99.05%--execute_native_thread_routine
+                          |          
+                          |--76.44%--jolt::gateway::FixGateway::exchange_rx_loop()
+                          |          |          
+                          |           --2.34%--jolt::gateway::EventLoop::notify() [clone .isra.0]
+                          |                     |          
+                          |                      --2.30%--__GI___libc_write
+                          |                                __syscall_cancel
+                          |                                |          
+                          |                                 --2.20%--__syscall_cancel_arch_end
+                          |                                           |          
+                          |                                           |--0.97%--0xffffffff8ec001c8
+                          |                                           |          
+                          |                                            --0.95%--0xffffffff8ec0012f
+                          |                                                      |          
+                          |                                                       --0.86%--0xffffffff9019c88e
+                          |                                                                 |          
+                          |                                                                  --0.63%--0xffffffff8f3ff8d3
+                          |          
+                           --22.14%--jolt::gateway::EventLoop::run()
+                                     |          
+                                     |--9.16%--jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                                     |          |          
+                                     |          |--4.53%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+                                     |          |          |          
+                                     |          |           --0.65%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+                                     |          |          
+                                     |          |--2.62%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                                     |          |          |          
+                                     |          |          |--1.27%--operator new(unsigned long)
+                                     |          |          |          |          
+                                     |          |          |           --1.25%--malloc
+                                     |          |          |                     |          
+                                     |          |          |                      --1.06%--_int_malloc
+                                     |          |          |          
+                                     |          |           --0.69%--__memmove_avx_unaligned_erms
+                                     |          |          
+                                     |           --0.68%--__memmove_avx_unaligned_erms
+                                     |          
+                                     |--7.40%--jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+                                     |          |          
+                                     |          |--1.33%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+                                     |          |          
+                                     |           --0.69%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+                                     |          
+                                     |--1.80%--__memchr_avx2
+                                     |          
+                                     |--1.43%--__memset_avx2_unaligned_erms
+                                     |          
+                                      --0.98%--jolt::gateway::FixSession::send_pending() [clone .isra.0]
+                                                |          
+                                                 --0.96%--__GI___writev
+                                                           __syscall_cancel
+                                                           __syscall_cancel_arch_end
+                                                           |          
+                                                            --0.88%--0xffffffff8ec0012f
+                                                                      |          
+                                                                       --0.86%--0xffffffff9019c88e
+                                                                                 |          
+                                                                                  --0.79%--0xffffffff8f3fe226
+
+    99.05%     0.00%  EntryGateway  libstdc++.so.6.0.34   [.] execute_native_thread_routine
+            |
+            ---execute_native_thread_routine
+               |          
+               |--76.44%--jolt::gateway::FixGateway::exchange_rx_loop()
+               |          |          
+               |           --2.34%--jolt::gateway::EventLoop::notify() [clone .isra.0]
+               |                     |          
+               |                      --2.30%--__GI___libc_write
+               |                                __syscall_cancel
+               |                                |          
+               |                                 --2.20%--__syscall_cancel_arch_end
+               |                                           |          
+               |                                           |--0.97%--0xffffffff8ec001c8
+               |                                           |          
+               |                                            --0.95%--0xffffffff8ec0012f
+               |                                                      |          
+               |                                                       --0.86%--0xffffffff9019c88e
+               |                                                                 |          
+               |                                                                  --0.63%--0xffffffff8f3ff8d3
+               |          
+                --22.14%--jolt::gateway::EventLoop::run()
+                          |          
+                          |--9.16%--jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                          |          |          
+                          |          |--4.53%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+                          |          |          |          
+                          |          |           --0.65%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+                          |          |          
+                          |          |--2.62%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                          |          |          |          
+                          |          |          |--1.27%--operator new(unsigned long)
+                          |          |          |          |          
+                          |          |          |           --1.25%--malloc
+                          |          |          |                     |          
+                          |          |          |                      --1.06%--_int_malloc
+                          |          |          |          
+                          |          |           --0.69%--__memmove_avx_unaligned_erms
+                          |          |          
+                          |           --0.68%--__memmove_avx_unaligned_erms
+                          |          
+                          |--7.40%--jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+                          |          |          
+                          |          |--1.33%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+                          |          |          
+                          |           --0.69%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+                          |          
+                          |--1.80%--__memchr_avx2
+                          |          
+                          |--1.43%--__memset_avx2_unaligned_erms
+                          |          
+                           --0.98%--jolt::gateway::FixSession::send_pending() [clone .isra.0]
+                                     |          
+                                      --0.96%--__GI___writev
+                                                __syscall_cancel
+                                                __syscall_cancel_arch_end
+                                                |          
+                                                 --0.88%--0xffffffff8ec0012f
+                                                           |          
+                                                            --0.86%--0xffffffff9019c88e
+                                                                      |          
+                                                                       --0.79%--0xffffffff8f3fe226
+
+    76.44%    74.03%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::exchange_rx_loop()
+            |          
+            |--74.03%--__GI___clone3
+            |          execute_native_thread_routine
+            |          jolt::gateway::FixGateway::exchange_rx_loop()
+            |          
+             --2.40%--jolt::gateway::FixGateway::exchange_rx_loop()
+                       |          
+                        --2.34%--jolt::gateway::EventLoop::notify() [clone .isra.0]
+                                  |          
+                                   --2.30%--__GI___libc_write
+                                             __syscall_cancel
+                                             |          
+                                              --2.20%--__syscall_cancel_arch_end
+                                                        |          
+                                                        |--0.97%--0xffffffff8ec001c8
+                                                        |          
+                                                         --0.95%--0xffffffff8ec0012f
+                                                                   |          
+                                                                    --0.86%--0xffffffff9019c88e
+                                                                              |          
+                                                                               --0.63%--0xffffffff8f3ff8d3
+
+    22.14%     0.62%  EntryGateway  EntryGateway          [.] jolt::gateway::EventLoop::run()
+            |          
+            |--21.52%--jolt::gateway::EventLoop::run()
+            |          |          
+            |          |--9.16%--jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+            |          |          |          
+            |          |          |--4.53%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+            |          |          |          |          
+            |          |          |           --0.65%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+            |          |          |          
+            |          |          |--2.62%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+            |          |          |          |          
+            |          |          |          |--1.27%--operator new(unsigned long)
+            |          |          |          |          |          
+            |          |          |          |           --1.25%--malloc
+            |          |          |          |                     |          
+            |          |          |          |                      --1.06%--_int_malloc
+            |          |          |          |          
+            |          |          |           --0.69%--__memmove_avx_unaligned_erms
+            |          |          |          
+            |          |           --0.68%--__memmove_avx_unaligned_erms
+            |          |          
+            |          |--7.40%--jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+            |          |          |          
+            |          |          |--1.33%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+            |          |          |          
+            |          |           --0.69%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+            |          |          
+            |          |--1.80%--__memchr_avx2
+            |          |          
+            |          |--1.43%--__memset_avx2_unaligned_erms
+            |          |          
+            |           --0.98%--jolt::gateway::FixSession::send_pending() [clone .isra.0]
+            |                     |          
+            |                      --0.96%--__GI___writev
+            |                                __syscall_cancel
+            |                                __syscall_cancel_arch_end
+            |                                |          
+            |                                 --0.88%--0xffffffff8ec0012f
+            |                                           |          
+            |                                            --0.86%--0xffffffff9019c88e
+            |                                                      |          
+            |                                                       --0.79%--0xffffffff8f3fe226
+            |          
+             --0.62%--__GI___clone3
+                       execute_native_thread_routine
+                       jolt::gateway::EventLoop::run()
+
+     9.55%     0.41%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+            |          
+             --9.14%--jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                       |          
+                       |--4.53%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+                       |          |          
+                       |           --0.65%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+                       |          
+                       |--2.62%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                       |          |          
+                       |          |--1.27%--operator new(unsigned long)
+                       |          |          |          
+                       |          |           --1.25%--malloc
+                       |          |                     |          
+                       |          |                      --1.06%--_int_malloc
+                       |          |          
+                       |           --0.69%--__memmove_avx_unaligned_erms
+                       |          
+                        --0.68%--__memmove_avx_unaligned_erms
+
+     7.40%     4.68%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+            |          
+            |--4.68%--__GI___clone3
+            |          execute_native_thread_routine
+            |          jolt::gateway::EventLoop::run()
+            |          jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+            |          
+             --2.72%--jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+                       |          
+                       |--1.33%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+                       |          
+                        --0.69%--jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+
+     4.53%     3.42%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+            |          
+            |--3.42%--__GI___clone3
+            |          execute_native_thread_routine
+            |          jolt::gateway::EventLoop::run()
+            |          jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+            |          jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+            |          
+             --1.10%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+                       |          
+                        --0.65%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+
+     3.38%     0.01%  EntryGateway  libc.so.6             [.] __syscall_cancel
+            |          
+             --3.37%--__syscall_cancel
+                       |          
+                        --3.28%--__syscall_cancel_arch_end
+                                  |          
+                                  |--1.85%--0xffffffff8ec0012f
+                                  |          |          
+                                  |           --1.73%--0xffffffff9019c88e
+                                  |                     |          
+                                  |                     |--0.79%--0xffffffff8f3fe226
+                                  |                     |          
+                                  |                      --0.63%--0xffffffff8f3ff8d3
+                                  |          
+                                   --0.97%--0xffffffff8ec001c8
+
+     3.30%     0.00%  EntryGateway  libc.so.6             [.] __syscall_cancel_arch_end
+            |
+            ---__syscall_cancel_arch_end
+               |          
+               |--1.85%--0xffffffff8ec0012f
+               |          |          
+               |           --1.74%--0xffffffff9019c88e
+               |                     |          
+               |                     |--0.79%--0xffffffff8f3fe226
+               |                     |          
+               |                      --0.63%--0xffffffff8f3ff8d3
+               |          
+                --0.97%--0xffffffff8ec001c8
+
+     2.70%     0.14%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+            |          
+             --2.56%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                       |          
+                       |--1.27%--operator new(unsigned long)
+                       |          |          
+                       |           --1.25%--malloc
+                       |                     |          
+                       |                      --1.06%--_int_malloc
+                       |          
+                        --0.69%--__memmove_avx_unaligned_erms
+
+     2.34%     0.03%  EntryGateway  libc.so.6             [.] __GI___libc_write
+            |          
+             --2.30%--__GI___libc_write
+                       __syscall_cancel
+                       |          
+                        --2.20%--__syscall_cancel_arch_end
+                                  |          
+                                  |--0.97%--0xffffffff8ec001c8
+                                  |          
+                                   --0.95%--0xffffffff8ec0012f
+                                             |          
+                                              --0.86%--0xffffffff9019c88e
+                                                        |          
+                                                         --0.63%--0xffffffff8f3ff8d3
+
+     2.34%     0.03%  EntryGateway  EntryGateway          [.] jolt::gateway::EventLoop::notify() [clone .isra.0]
+            |          
+             --2.30%--jolt::gateway::EventLoop::notify() [clone .isra.0]
+                       __GI___libc_write
+                       __syscall_cancel
+                       |          
+                        --2.20%--__syscall_cancel_arch_end
+                                  |          
+                                  |--0.97%--0xffffffff8ec001c8
+                                  |          
+                                   --0.95%--0xffffffff8ec0012f
+                                             |          
+                                              --0.86%--0xffffffff9019c88e
+                                                        |          
+                                                         --0.63%--0xffffffff8f3ff8d3
+
+     2.19%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec0012f
+            |
+            ---0xffffffff8ec0012f
+               |          
+                --2.06%--0xffffffff9019c88e
+                          |          
+                          |--0.79%--0xffffffff8f3fe226
+                          |          
+                           --0.63%--0xffffffff8f3ff8d3
+
+     2.06%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff9019c88e
+            |
+            ---0xffffffff9019c88e
+               |          
+               |--0.79%--0xffffffff8f3fe226
+               |          
+                --0.63%--0xffffffff8f3ff8d3
+
+     1.84%     1.84%  EntryGateway  libc.so.6             [.] __memchr_avx2
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               |          
+                --1.80%--jolt::gateway::EventLoop::run()
+                          __memchr_avx2
+
+     1.81%     1.81%  EntryGateway  libc.so.6             [.] __memset_avx2_unaligned_erms
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::EventLoop::run()
+               |          
+                --1.43%--__memset_avx2_unaligned_erms
+
+     1.63%     1.63%  EntryGateway  libc.so.6             [.] __memmove_avx_unaligned_erms
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::EventLoop::run()
+               |          
+                --1.59%--jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                          |          
+                          |--0.69%--jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                          |          __memmove_avx_unaligned_erms
+                          |          
+                           --0.68%--__memmove_avx_unaligned_erms
+
+     1.33%     1.33%  EntryGateway  EntryGateway          [.] jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::EventLoop::run()
+               jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+               jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::insert(jolt::gateway::ClOrdMapKey const&, unsigned long const&) [clone .isra.0]
+
+     1.27%     0.00%  EntryGateway  libstdc++.so.6.0.34   [.] operator new(unsigned long)
+            |          
+             --1.27%--operator new(unsigned long)
+                       |          
+                        --1.25%--malloc
+                                  |          
+                                   --1.06%--_int_malloc
+
+     1.25%     0.17%  EntryGateway  libc.so.6             [.] malloc
+            |          
+             --1.08%--malloc
+                       |          
+                        --1.06%--_int_malloc
+
+     1.08%     0.89%  EntryGateway  libc.so.6             [.] _int_malloc
+            |          
+             --0.89%--__GI___clone3
+                       execute_native_thread_routine
+                       jolt::gateway::EventLoop::run()
+                       jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                       jolt::gateway::FixGateway::queue_fix_message(jolt::FixMessage const&)
+                       operator new(unsigned long)
+                       |          
+                        --0.88%--malloc
+                                  _int_malloc
+
+     1.06%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec012a6
+            |
+            ---0xffffffff8ec012a6
+               |          
+                --1.06%--0xffffffff901a32ce
+                          |          
+                           --1.02%--0xffffffff8ef8604a
+                                     |          
+                                      --1.00%--0xffffffff8f316cd1
+                                                |          
+                                                 --0.94%--0xffffffff8f316a61
+                                                           |          
+                                                            --0.84%--0xffffffff8f314ea8
+
+     1.06%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a32ce
+            |
+            ---0xffffffff901a32ce
+               |          
+                --1.02%--0xffffffff8ef8604a
+                          |          
+                           --1.00%--0xffffffff8f316cd1
+                                     |          
+                                      --0.94%--0xffffffff8f316a61
+                                                |          
+                                                 --0.84%--0xffffffff8f314ea8
+
+     1.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ef8604a
+            |
+            ---0xffffffff8ef8604a
+               |          
+                --1.00%--0xffffffff8f316cd1
+                          |          
+                           --0.94%--0xffffffff8f316a61
+                                     |          
+                                      --0.84%--0xffffffff8f314ea8
+
+     1.00%     0.04%  EntryGateway  EntryGateway          [.] jolt::gateway::FixSession::send_pending() [clone .isra.0]
+            |          
+             --0.96%--jolt::gateway::FixSession::send_pending() [clone .isra.0]
+                       __GI___writev
+                       __syscall_cancel
+                       __syscall_cancel_arch_end
+                       |          
+                        --0.88%--0xffffffff8ec0012f
+                                  |          
+                                   --0.86%--0xffffffff9019c88e
+                                             |          
+                                              --0.79%--0xffffffff8f3fe226
+
+     1.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f316cd1
+            |
+            ---0xffffffff8f316cd1
+               |          
+                --0.94%--0xffffffff8f316a61
+                          |          
+                           --0.84%--0xffffffff8f314ea8
+
+     0.97%     0.97%  EntryGateway  [unknown]             [k] 0xffffffff8ec001c8
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::FixGateway::exchange_rx_loop()
+               jolt::gateway::EventLoop::notify() [clone .isra.0]
+               __GI___libc_write
+               __syscall_cancel
+               __syscall_cancel_arch_end
+               0xffffffff8ec001c8
+
+     0.96%     0.00%  EntryGateway  libc.so.6             [.] __GI___writev
+            |
+            ---__GI___writev
+               __syscall_cancel
+               __syscall_cancel_arch_end
+               |          
+                --0.88%--0xffffffff8ec0012f
+                          |          
+                           --0.86%--0xffffffff9019c88e
+                                     |          
+                                      --0.79%--0xffffffff8f3fe226
+
+     0.94%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f316a61
+            |
+            ---0xffffffff8f316a61
+               |          
+                --0.84%--0xffffffff8f314ea8
+
+     0.84%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f314ea8
+            |
+            ---0xffffffff8f314ea8
+
+     0.83%     0.00%  EntryGateway  EntryGateway          [.] _start
+            |
+            ---_start
+               __libc_start_main@@GLIBC_2.34
+               __libc_start_call_main
+               |          
+                --0.83%--main
+                          |          
+                           --0.82%--0xffffffff8ec012a6
+                                     |          
+                                      --0.82%--0xffffffff901a32ce
+                                                |          
+                                                 --0.82%--0xffffffff8ef8604a
+                                                           0xffffffff8f316cd1
+                                                           |          
+                                                            --0.82%--0xffffffff8f316a61
+                                                                      |          
+                                                                       --0.82%--0xffffffff8f314ea8
+
+     0.83%     0.00%  EntryGateway  libc.so.6             [.] __libc_start_main@@GLIBC_2.34
+            |
+            ---__libc_start_main@@GLIBC_2.34
+               __libc_start_call_main
+               |          
+                --0.83%--main
+                          |          
+                           --0.82%--0xffffffff8ec012a6
+                                     |          
+                                      --0.82%--0xffffffff901a32ce
+                                                |          
+                                                 --0.82%--0xffffffff8ef8604a
+                                                           0xffffffff8f316cd1
+                                                           |          
+                                                            --0.82%--0xffffffff8f316a61
+                                                                      |          
+                                                                       --0.82%--0xffffffff8f314ea8
+
+     0.83%     0.00%  EntryGateway  libc.so.6             [.] __libc_start_call_main
+            |
+            ---__libc_start_call_main
+               |          
+                --0.83%--main
+                          |          
+                           --0.82%--0xffffffff8ec012a6
+                                     |          
+                                      --0.82%--0xffffffff901a32ce
+                                                |          
+                                                 --0.82%--0xffffffff8ef8604a
+                                                           0xffffffff8f316cd1
+                                                           |          
+                                                            --0.82%--0xffffffff8f316a61
+                                                                      |          
+                                                                       --0.82%--0xffffffff8f314ea8
+
+     0.83%     0.00%  EntryGateway  EntryGateway          [.] main
+            |          
+             --0.82%--main
+                       |          
+                        --0.82%--0xffffffff8ec012a6
+                                  |          
+                                   --0.82%--0xffffffff901a32ce
+                                             |          
+                                              --0.82%--0xffffffff8ef8604a
+                                                        0xffffffff8f316cd1
+                                                        |          
+                                                         --0.82%--0xffffffff8f316a61
+                                                                   |          
+                                                                    --0.82%--0xffffffff8f314ea8
+
+     0.79%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fe226
+            |
+            ---0xffffffff8f3fe226
+
+     0.70%     0.67%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+            |          
+             --0.67%--__GI___clone3
+                       execute_native_thread_routine
+                       jolt::gateway::EventLoop::run()
+                       jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+                       |          
+                        --0.63%--jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)
+                                  jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, unsigned long) const [clone .isra.0]
+
+     0.69%     0.69%  EntryGateway  EntryGateway          [.] jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::EventLoop::run()
+               jolt::gateway::FixGateway::on_fix_message(std::basic_string_view<char, std::char_traits<char> >, unsigned long) [clone .isra.0]
+               jolt::ob::FlatMap<jolt::gateway::ClOrdMapKey, unsigned long, jolt::gateway::ClOrdMapKeyHash>::find(jolt::gateway::ClOrdMapKey const&)
+
+     0.66%     0.09%  EntryGateway  libstdc++.so.6.0.34   [.] std::chrono::_V2::system_clock::now()
+            |          
+             --0.58%--std::chrono::_V2::system_clock::now()
+                       |          
+                        --0.55%--clock_gettime@@GLIBC_2.17
+
+     0.64%     0.11%  EntryGateway  libc.so.6             [.] clock_gettime@@GLIBC_2.17
+            |          
+             --0.53%--clock_gettime@@GLIBC_2.17
+
+     0.63%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3ff8d3
+            |
+            ---0xffffffff8f3ff8d3
+
+     0.54%     0.54%  EntryGateway  EntryGateway          [.] jolt::gateway::FixGateway::build_exec_report(jolt::FixMessage&, jolt::SessionState*, jolt::OrderState const&, unsigned long, bool, jolt::ob::RejectReason)::{lambda((anonymous namespace)::FixBuffer&, char const*, unsigned long, std::basic_string_view<char, std::char_traits<char> >)#1}::operator()((anonymous namespace)::FixBuffer&, char const*, unsigned long, std::basic_string_view<char, std::char_traits<char> >) const [clone .isra.0]
+            |
+            ---__GI___clone3
+               execute_native_thread_routine
+               jolt::gateway::EventLoop::run()
+               jolt::gateway::FixGateway::handle_exchange_msg(jolt::ExchToGtwyMsg const&)
+
+     0.47%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f314b29
+     0.46%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f38e67e
+     0.45%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f38b446
+     0.45%     0.45%  EntryGateway  [vdso]                [.] 0x00000000000008f2
+     0.45%     0.00%  EntryGateway  [vdso]                [.] 0x00007f788c8f98f2
+     0.42%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f34c84b
+     0.41%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f34b508
+     0.41%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3461f9
+     0.39%     0.39%  EntryGateway  [unknown]             [k] 0xffffffff901974db
+     0.37%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fded8
+     0.33%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fc6b1
+     0.31%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f314b43
+     0.30%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f6e759b
+     0.30%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fc3b6
+     0.27%     0.00%  EntryGateway  libc.so.6             [.] epoll_ctl
+     0.25%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3ff33e
+     0.24%     0.24%  EntryGateway  EntryGateway          [.] std::from_chars_result std::from_chars<unsigned long, 0>(char const*, char const*, unsigned long&, int) [clone .constprop.0]
+     0.22%     0.22%  EntryGateway  EntryGateway          [.] jolt::gateway::FixSession::queue_message(std::basic_string_view<char, std::char_traits<char> >)
+     0.22%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3ff2ec
+     0.21%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fde94
+     0.20%     0.01%  EntryGateway  [unknown]             [.] 0xffffffff8f3c9780
+     0.20%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a87f
+     0.17%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fde38
+     0.15%     0.15%  EntryGateway  EntryGateway          [.] (anonymous namespace)::get_tag((anonymous namespace)::FixMsg const&, int) [clone .part.0]
+     0.15%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47de26
+     0.15%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f85d6bb
+     0.14%     0.14%  EntryGateway  libc.so.6             [.] __strnlen_avx2
+     0.13%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f6f3f6b
+     0.13%     0.13%  EntryGateway  EntryGateway          [.] (anonymous namespace)::id_from_cl_ord_id(std::basic_string_view<char, std::char_traits<char> >)
+     0.13%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8fe7aeff
+     0.13%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3ff88c
+     0.12%     0.08%  EntryGateway  [unknown]             [k] 0xffffffff8ec00116
+     0.11%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8fe7afd1
+     0.11%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f6f2329
+     0.10%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3c8448
+     0.10%     0.10%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff328
+     0.10%     0.00%  EntryGateway  libc.so.6             [.] __mprotect
+     0.10%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f32247f
+     0.09%     0.09%  EntryGateway  libc.so.6             [.] __internal_syscall_cancel
+     0.09%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ffa6b8f
+     0.09%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f6f220c
+     0.09%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a6ac
+     0.09%     0.09%  EntryGateway  EntryGateway          [.] (anonymous namespace)::parse_uint64(std::basic_string_view<char, std::char_traits<char> >, unsigned long&) [clone .constprop.0]
+     0.08%     0.08%  EntryGateway  [unknown]             [k] 0xffffffff9019c82d
+     0.08%     0.08%  EntryGateway  [unknown]             [k] 0xffffffff8ec000ad
+     0.08%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f85d52e
+     0.07%     0.07%  EntryGateway  [unknown]             [k] 0xffffffff8ec00084
+     0.07%     0.07%  EntryGateway  libstdc++.so.6.0.34   [.] std::_Hash_bytes(void const*, unsigned long, unsigned long)
+     0.07%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310e29
+     0.07%     0.07%  EntryGateway  [unknown]             [k] 0xffffffff8f6f00c5
+     0.07%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f6ec659
+     0.07%     0.07%  EntryGateway  libc.so.6             [.] unlink_chunk.isra.0
+     0.06%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3c976e
+     0.06%     0.06%  EntryGateway  EntryGateway          [.] memcpy@plt
+     0.06%     0.06%  EntryGateway  [unknown]             [k] 0xffffffff8f42f567
+     0.06%     0.06%  EntryGateway  [unknown]             [k] 0xffffffff8f86265f
+     0.06%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f314b76
+     0.05%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3765ca
+     0.05%     0.05%  EntryGateway  [unknown]             [k] 0xffffffff8ec01280
+     0.05%     0.05%  EntryGateway  [unknown]             [k] 0xffffffff8ec0008f
+     0.05%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3bf3ef
+     0.05%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f322172
+     0.05%     0.05%  EntryGateway  [unknown]             [k] 0xffffffff8f862664
+     0.05%     0.05%  EntryGateway  [unknown]             [k] 0xffffffff8f6ec65b
+     0.05%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ffa5edb
+     0.05%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ffa52d8
+     0.04%     0.04%  EntryGateway  [unknown]             [k] 0xffffffff8ffd625f
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ffa5a56
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f4785fa
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8fe79c24
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f85d44d
+     0.04%     0.04%  EntryGateway  [unknown]             [k] 0xffffffff8fe7ae87
+     0.04%     0.04%  EntryGateway  EntryGateway          [.] (anonymous namespace)::append_checksum((anonymous namespace)::FixBuffer&, unsigned int)
+     0.04%     0.00%  EntryGateway  libc.so.6             [.] sysmalloc
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ef86009
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f305429
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec0160a
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a2888
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ef60dd8
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d144c
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d0633
+     0.04%     0.04%  EntryGateway  [unknown]             [k] 0xffffffff8f0e96a7
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0e869f
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0cf585
+     0.04%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0ed403
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8ec00131
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc3b1
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff8d6
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff901b44b5
+     0.03%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47debb
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f6fb834
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8ec00125
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff8c1
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f47dde4
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f6fb877
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff4fb
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f862640
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff561
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f47de7d
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8ec00005
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f6fb87c
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f6f3f5e
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff86b
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f42f535
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f42f49e
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc383
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8ec000be
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f86265c
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff9019c867
+     0.03%     0.03%  EntryGateway  [unknown]             [k] 0xffffffff8f6f3edd
+     0.03%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3221e4
+     0.03%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310cd2
+     0.02%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c842f
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8ffa47ed
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f365191
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8fe8c288
+     0.02%     0.02%  EntryGateway  EntryGateway          [.] memset@plt
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d6b0
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3ffee0
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff90171f46
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8fe7d740
+     0.02%     0.00%  EntryGateway  libc.so.6             [.] __libc_recv
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8fe7d854
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff901b44ac
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a6de
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f401697
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a3c0
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6ff1b7
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d503
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc580
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6ff1bd
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f478601
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8ec01284
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d5ee
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3165ea
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85784a
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f42df63
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a02a
+     0.02%     0.02%  EntryGateway  [vdso]                [.] __vdso_clock_gettime
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f310c55
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc3b8
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f47a131
+     0.02%     0.02%  EntryGateway  [vdso]                [.] 0x000000000000092b
+     0.02%     0.00%  EntryGateway  [vdso]                [.] 0x00007f788c8f992b
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8fe7ae54
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8fe8c164
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f316c86
+     0.02%     0.02%  EntryGateway  libc.so.6             [.] isspace
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff901b43ea
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a6c5
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6f3d95
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3289e0
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f31631d
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f328c3f
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc3d2
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6f00aa
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f2a7bfa
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310c7d
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f30fdf4
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f2db2af
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f2dacd0
+     0.02%     0.02%  EntryGateway  EntryGateway          [.] memchr@plt
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d55d
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a866
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff9019f5c4
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec0128d
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fddfa
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8eed8e56
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff9019c8c6
+     0.02%     0.02%  EntryGateway  libstdc++.so.6.0.34   [.] clock_gettime@plt
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6f21dd
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8ec000c2
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85783e
+     0.02%     0.00%  EntryGateway  [unknown]             [k] 0000000000000000
+     0.02%     0.02%  EntryGateway  [vdso]                [.] 0x0000000000000900
+     0.02%     0.00%  EntryGateway  [vdso]                [.] 0x00007f788c8f9900
+     0.02%     0.02%  EntryGateway  [vdso]                [.] 0x00000000000008ab
+     0.02%     0.00%  EntryGateway  [vdso]                [.] 0x00007f788c8f98ab
+     0.02%     0.02%  EntryGateway  EntryGateway          [.] jolt::gateway::EventLoop::update_interest(jolt::gateway::FixSession*, int, unsigned long, bool) [clone .isra.0]
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6ff19c
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc6ee
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8fe7af6c
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f40167d
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f478606
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3289eb
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3107df
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f328d01
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8ec01298
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fde02
+     0.02%     0.02%  EntryGateway  [vdso]                [.] 0x000000000000095a
+     0.02%     0.00%  EntryGateway  [vdso]                [.] 0x00007f788c8f995a
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff901b4434
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ffa6b80
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8ffa475a
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f0a4a40
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3fe16d
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f42f589
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fc364
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d442
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3c39be
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f7ce3d4
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f7ce3f2
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf3fe
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f3fe181
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f6e7eae
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f316568
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff90177ff6
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3220cc
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f30762a
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3165e7
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f73f5d0
+     0.02%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f6e7eac
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff90171f0a
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff8f85d451
+     0.02%     0.02%  EntryGateway  [unknown]             [k] 0xffffffff901974dd
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c979e
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8eff43e0
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c600b
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8439
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f6e7e84
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c9772
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f34c6c0
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c39a5
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f31e11e
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f321db8
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f33c443
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f321c9e
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f34c772
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f6ec676
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f38b44a
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c845a
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8467
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3c399e
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8437
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8ed04104
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ed04110
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f7ce410
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c60d4
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c39b5
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3c6086
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c5fd8
+     0.01%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_start_user
+     0.01%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_start
+     0.01%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_sysdep_start
+     0.01%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] dl_main
+     0.01%     0.01%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_relocate_object_no_relro
+     0.01%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_relocate_object
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f32bb06
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310761
+     0.01%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310392
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c5ff7
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf3a6
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf3b7
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f7ce3f4
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f314b45
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf39b
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c39c9
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f34b52a
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f38e681
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8eff43f7
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8462
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf3a7
+     0.01%     0.01%  EntryGateway  [unknown]             [k] 0xffffffff8f3c97a7
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c39e0
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f09f141
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c7ace
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3be460
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3bf40a
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c9750
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3bc4b4
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3c7b1b
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f3bc6dc
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8419
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c7a94
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3765b5
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c9786
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f1137e0
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0a4a38
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c7abc
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f09f147
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8ed0410b
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c8431
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3bf3f7
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3c5fdc
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f113828
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] __nanosleep
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] clock_nanosleep@GLIBC_2.2.5
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0e03ae
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0dca64
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d17ca
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_map_object_deps
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_catch_exception
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] openaux
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_map_object
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] __GI___close_nocancel
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec01ce2
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901b15fe
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901aa3b7
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901b15f2
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d0aca
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f42df08
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f47a016
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a9d21
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0119a9
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a9cab
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfd29
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f00da4c
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d0adb
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b4360
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f00f5e9
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a9cea
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901a9c4d
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0cfd22
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff9018aaab
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f01d63a
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f027c42
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f027360
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f026ca8
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f01d76f
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0106cd
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] do_lookup_x
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_runtime_resolve_xsavec
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_fixup
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _dl_lookup_symbol_x
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f34c6ee
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f04f251
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8ed04109
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f01122b
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0112a7
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901a9bd2
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d0aa9
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901aa3a5
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b15f7
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f34b26c
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f34950c
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f34803b
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] __GI___tunables_init
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f8956bb
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f347d29
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d0b11
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d0984
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f04f224
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b436b
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0106a0
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0106cf
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d415e
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff9018aaa3
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff9018aab7
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d0a47
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d0b16
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b3ddc
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfef4
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b3d79
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f347fec
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f347cff
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f34c7ef
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f2a4398
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310f5b
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310ae0
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f2a49b5
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] start_thread
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8eed9a86
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f31495c
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] __GI___snprintf
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f314b86
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3164c7
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] name_stack_maps
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] __printf_buffer
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] __vsnprintf_internal
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f316c6b
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f310edc
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f306fe4
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d1780
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d031a
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d413f
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8ef28657
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d413a
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f069622
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfdaf
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfdc3
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d09d2
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901aa3e6
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d179a
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f0d09d7
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfb25
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfb82
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d4123
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f34b0a2
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0cfdd9
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d098b
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d09b2
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d09ff
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d0abf
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b3ded
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f38e4ff
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901b15d2
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f0d17a6
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f305457
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f31494f
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f36611f
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f31678a
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f31682f
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff90172111
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8ef85ed5
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3ff864
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f053484
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff8f3163f0
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff90171ff0
+     0.00%     0.00%  EntryGateway  ld-linux-x86-64.so.2  [.] _start
+     0.00%     0.00%  EntryGateway  [unknown]             [k] 0xffffffff901a327c
+     0.00%     0.00%  EntryGateway  libc.so.6             [.] sysmalloc_mmap.isra.0
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ec0164a
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8ef28650
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a3959
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff901a9d3c
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f00ca9a
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f30541f
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f314e8d
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f30ee86
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f32e2ee
+     0.00%     0.00%  EntryGateway  [unknown]             [.] 0xffffffff8f38e661
+
+
+#
+# (Tip: If you have debuginfo enabled, try: perf report -s sym,srcline)
+#

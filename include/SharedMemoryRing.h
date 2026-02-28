@@ -265,6 +265,32 @@ public:
             return true;
         }
 
+        template <typename Fn>
+        size_t drain(Fn&& fn, size_t max_items = CAPACITY - 1) {
+            if (max_items == 0) {
+                return 0;
+            }
+
+            const size_t curr_head = header_->head.load(std::memory_order_relaxed);
+            const size_t curr_tail = header_->tail.load(std::memory_order_acquire);
+            tail_cache_ = curr_tail;
+
+            const size_t available = (curr_tail - curr_head) & kMask;
+            if (available == 0) {
+                return 0;
+            }
+
+            const size_t to_drain = available < max_items ? available : max_items;
+            size_t idx = curr_head;
+            for (size_t i = 0; i < to_drain; ++i) {
+                fn(*get_slot(idx));
+                idx = (idx + 1) & kMask;
+            }
+
+            header_->head.store(idx, std::memory_order_release);
+            return to_drain;
+        }
+
         std::optional<T> dequeue() {
             const size_t curr_head = header_->head.load(std::memory_order_relaxed);
             if (curr_head == tail_cache_) {

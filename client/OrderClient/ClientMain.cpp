@@ -112,8 +112,8 @@ namespace {
             << "  --pareto-scale <x>           default: 1.0\n"
             << "  --send-interval-us <n>       default: 1000\n"
             << "  --poll-every <n>             default: 0 (disabled)\n"
-            << "  --final-drain-ms <n>         default: 2000\n"
-            << "  --stay-connected             keep sessions alive with heartbeats after sending all orders\n"
+            << "  --final-drain-ms <n>         default: 0 (wait indefinitely for responses)\n"
+            << "  --stay-connected             keep sessions open after sending all orders\n"
             << "  --market                     send market orders only\n";
     }
 

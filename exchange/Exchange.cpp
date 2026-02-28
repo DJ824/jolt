@@ -98,19 +98,23 @@ namespace jolt::exchange {
 
 
         bool did_work = false;
-        while (auto msg = risk_exch.dequeue()) {
-            handle_order(msg->order);
-            did_work = true;
-        }
-
-        while (auto msg = gtwy_exch.dequeue()) {
+        const size_t gtwy_drained = gtwy_exch.drain([&](const GtwyToExchMsg& msg) {
             log_info("[exch] exchange received order from gateway order_id=" +
-                     std::to_string(msg->order.id) +
-                     " client_id=" + std::to_string(msg->order.client_id) +
-                     " action=" + std::string(order_action_text(msg->order.action)) +
-                     " symbol_id=" + std::to_string(msg->order.symbol_id));
-            handle_order(msg->order);
-            did_work = true;
+                     std::to_string(msg.order.id) +
+                     " client_id=" + std::to_string(msg.order.client_id) +
+                     " action=" + std::string(order_action_text(msg.order.action)) +
+                     " symbol_id=" + std::to_string(msg.order.symbol_id));
+            handle_order(msg.order);
+        });
+
+        did_work = did_work || (gtwy_drained > 0);
+
+        const bool poll_risk_now = (gtwy_drained == 0) || ((++risk_poll_tick_ & 0x7u) == 0);
+        if (poll_risk_now) {
+            const size_t risk_drained = risk_exch.drain([&](const RiskToExchMsg& msg) {
+                handle_order(msg.order);
+            });
+            did_work = did_work || (risk_drained > 0);
         }
 
         return did_work;
@@ -305,11 +309,9 @@ namespace jolt::exchange {
     }
 
     void Exchange::poll_requests() {
-        while (auto req = requests_.dequeue()) {
-            if (req) {
-                handle_snapshot_request(req->symbol_id, 0, req->request_id, req->session_id);
-            }
-        }
+        (void)requests_.drain([&](const md::DataRequest& req) {
+            handle_snapshot_request(req.symbol_id, 0, req.request_id, req.session_id);
+        });
     }
 
 
