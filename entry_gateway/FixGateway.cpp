@@ -945,7 +945,7 @@ namespace jolt::gateway {
         }
 
         OrderState* state = nullptr;
-        auto cl_ord_id = get_tag(msg, 11);
+        const auto cl_ord_id = get_tag(msg, 11);
         if (cl_ord_id.empty()) {
             log_error("[gtwy] gateway received order without ClOrdID client_id=" + std::to_string(client_id) +
                 " session=" + std::to_string(session_id) +
@@ -962,7 +962,6 @@ namespace jolt::gateway {
         }
 
         auto orig_cl_ord_id = get_tag(msg, 41);
-
         if (orig_cl_ord_id.empty()) {
             orig_cl_ord_id = cl_ord_id;
         }
@@ -973,23 +972,199 @@ namespace jolt::gateway {
                 " max_len=" + std::to_string(kOrderStateTextMaxLen));
             return false;
         }
-        const ClOrdMapKey cl_ord_key = cl_ord_key_from_view(cl_ord_id);
-        const ClOrdMapKey orig_cl_ord_key = cl_ord_key_from_view(orig_cl_ord_id);
 
         if (msg_type.size() != 1) {
             log_error("[gtwy] gateway received invalid MsgType for order client_id=" + std::to_string(client_id) +
                 " session=" + std::to_string(session_id));
             return false;
         }
+        const char order_msg_type = msg_type[0];
 
-        if (is_client_order_msg_type(msg_type)) {
-            log_info("[gtwy] gateway received order from client msg_type=" + std::string(msg_type) +
-                " cl_ord_id=" + std::string(cl_ord_id) +
-                " client_id=" + std::to_string(client_id) +
+        log_info("[gtwy] gateway received order from client msg_type=" + std::string(msg_type) +
+            " cl_ord_id=" + std::string(cl_ord_id) +
+            " client_id=" + std::to_string(client_id) +
+            " session=" + std::to_string(session_id));
+
+        const ClOrdMapKey cl_ord_key = cl_ord_key_from_view(cl_ord_id);
+        const ClOrdMapKey orig_cl_ord_key = cl_ord_key_from_view(orig_cl_ord_id);
+        ob::RejectReason reason = ob::RejectReason::NotApplicable;
+        bool invalid_ord_type = false;
+
+        auto resolve_existing_state = [&](std::string_view action_name) -> bool {
+            auto* mapped_order_id = cl_ord_id_to_order_id_.find(orig_cl_ord_key);
+            if (!mapped_order_id) {
+                log_error("[gtwy] gateway " + std::string(action_name) +
+                    " references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                    " client_id=" + std::to_string(client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            state = order_state_pool_.get(*mapped_order_id);
+            if (!state) {
+                log_error("[gtwy] gateway " + std::string(action_name) +
+                    " resolved unmapped order_id=" + std::to_string(*mapped_order_id) +
+                    " for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                    " client_id=" + std::to_string(client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            if (state->params.id != *mapped_order_id) {
+                log_error("[gtwy] gateway " + std::string(action_name) +
+                    " resolved stale state for OrigClOrdID=" + std::string(orig_cl_ord_id) +
+                    " order_id=" + std::to_string(*mapped_order_id) +
+                    " client_id=" + std::to_string(client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            return true;
+        };
+
+        auto assign_ids = [&]() -> bool {
+            if (!set_fixed_field(state->cl_ord_id, cl_ord_id)) {
+                log_error("[gtwy] gateway failed storing ClOrdID due to length order_id=" +
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            if (!orig_cl_ord_id.empty()) {
+                if (!set_fixed_field(state->orig_cl_ord_id, orig_cl_ord_id)) {
+                    log_error("[gtwy] gateway failed storing OrigClOrdID due to length order_id=" +
+                        std::to_string(state->params.id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        auto parse_symbol = [&](bool required) -> bool {
+            const auto symbol = get_tag(msg, 55);
+            if (symbol.empty()) {
+                if (!required) {
+                    return true;
+                }
+                log_error("[gtwy] gateway new order missing symbol tag55 order_id=" +
+                    std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            uint16_t symbol_id = 0;
+            if (!parse_symbol_id(symbol, symbol_id)) {
+                log_error("[gtwy] gateway failed parsing symbol tag55 value=" + std::string(symbol) +
+                    " order_id=" + std::to_string(state->params.id) +
+                    " client_id=" + std::to_string(state->params.client_id) +
+                    " session=" + std::to_string(session_id));
+                return false;
+            }
+            state->params.symbol_id = symbol_id;
+            return true;
+        };
+
+        auto parse_side = [&](bool required) -> bool {
+            const auto side_tag = get_tag(msg, 54);
+            if (side_tag == "1") {
+                state->params.side = ob::Side::Buy;
+                return true;
+            }
+            if (side_tag == "2") {
+                state->params.side = ob::Side::Sell;
+                return true;
+            }
+            if (!required) {
+                return true;
+            }
+            log_error("[gtwy] gateway new order missing side tag54 order_id=" + std::to_string(state->params.id) +
+                " client_id=" + std::to_string(state->params.client_id) +
                 " session=" + std::to_string(session_id));
-        }
+            return false;
+        };
 
-        switch (msg_type[0]) {
+        auto parse_tif = [&]() {
+            const auto tif_tag = get_tag(msg, 59);
+            if (tif_tag.size() != 1) {
+                state->params.tif = ob::TIF::GTC;
+                return;
+            }
+            switch (tif_tag[0]) {
+            case '3':
+                state->params.tif = ob::TIF::IOC;
+                break;
+            case '4':
+                state->params.tif = ob::TIF::FOK;
+                break;
+            default:
+                state->params.tif = ob::TIF::GTC;
+                break;
+            }
+        };
+
+        auto parse_type_qty_px = [&](bool ord_type_required) -> bool {
+            const auto ord_type_tag = get_tag(msg, 40);
+            if (ord_type_tag.empty()) {
+                if (ord_type_required) {
+                    invalid_ord_type = true;
+                }
+            }
+            else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
+                invalid_ord_type = true;
+            }
+
+            const auto qty_tag = get_tag(msg, 38);
+            if (!qty_tag.empty()) {
+                uint64_t qty = 0;
+                if (!parse_uint64(qty_tag, qty)) {
+                    log_error("[gtwy] gateway failed parsing qty tag38 value=" + std::string(qty_tag) +
+                        " order_id=" + std::to_string(state->params.id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                state->params.qty = qty;
+            }
+
+            const auto price_tag = get_tag(msg, 44);
+            if (!price_tag.empty()) {
+                ob::PriceTick price = 0;
+                if (!parse_uint32(price_tag, price)) {
+                    log_error("[gtwy] gateway failed parsing price tag44 value=" + std::string(price_tag) +
+                        " order_id=" + std::to_string(state->params.id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                if (state->params.type == ob::OrderType::StopLimit) {
+                    state->params.limit_px = price;
+                }
+                else {
+                    state->params.price = price;
+                }
+            }
+
+            const auto stop_px = get_tag(msg, 99);
+            if (!stop_px.empty()) {
+                ob::PriceTick trigger = 0;
+                if (!parse_uint32(stop_px, trigger)) {
+                    log_error("[gtwy] gateway failed parsing stop tag99 value=" + std::string(stop_px) +
+                        " order_id=" + std::to_string(state->params.id) +
+                        " client_id=" + std::to_string(state->params.client_id) +
+                        " session=" + std::to_string(session_id));
+                    return false;
+                }
+                state->params.trigger = trigger;
+            }
+
+            if ((state->params.type == ob::OrderType::StopMarket ||
+                 state->params.type == ob::OrderType::StopLimit) &&
+                state->params.trigger != 0) {
+                state->params.price = state->params.trigger;
+            }
+            return true;
+        };
+
+        switch (order_msg_type) {
         case 'D':
             {
                 const uint64_t order_id = next_order_id_++;
@@ -1003,247 +1178,71 @@ namespace jolt::gateway {
                 }
                 *state = OrderState{};
                 state->params.id = order_id;
+                state->params.client_id = client_id;
+                state->params.ts = static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count());
+                state->session_id = session_id;
+                state->params.action = ob::OrderAction::New;
+                if (!assign_ids() || !parse_symbol(true) || !parse_side(true)) {
+                    return false;
+                }
+                parse_tif();
+                if (!parse_type_qty_px(true)) {
+                    return false;
+                }
+                if (invalid_ord_type) {
+                    reason = ob::RejectReason::InvalidType;
+                }
+                else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
+                    reason = ob::RejectReason::InvalidPrice;
+                }
+                else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
+                    reason = ob::RejectReason::InvalidPrice;
+                }
+                else if (state->params.type == ob::OrderType::StopLimit &&
+                    (state->params.trigger == 0 || state->params.limit_px == 0)) {
+                    reason = ob::RejectReason::InvalidPrice;
+                }
+                break;
             }
-            state->params.client_id = client_id;
-            state->params.ts = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count());
-
-            state->session_id = session_id;
-            state->params.action = ob::OrderAction::New;
-            break;
-
         case 'F':
-            if (orig_cl_ord_id.empty()) {
-                log_error("[gtwy] gateway cancel missing OrigClOrdID cl_ord_id=" + std::string(cl_ord_id) +
-                    " client_id=" + std::to_string(client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
             {
-                auto* mapped_order_id = cl_ord_id_to_order_id_.find(orig_cl_ord_key);
-                if (!mapped_order_id) {
-                    log_error("[gtwy] gateway cancel references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
+                if (!resolve_existing_state("cancel")) {
                     return false;
                 }
-                state = order_state_pool_.get(*mapped_order_id);
-                if (!state) {
-                    log_error("[gtwy] gateway cancel resolved unmapped order_id=" + std::to_string(*mapped_order_id) +
-                        " for OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
+                state->params.action = ob::OrderAction::Cancel;
+                if (!assign_ids()) {
                     return false;
                 }
-                if (state->params.id != *mapped_order_id) {
-                    log_error("[gtwy] gateway cancel resolved stale state for OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " order_id=" + std::to_string(*mapped_order_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
-                    return false;
-                }
+                break;
             }
-            state->params.action = ob::OrderAction::Cancel;
-            break;
         case 'G':
-            if (orig_cl_ord_id.empty()) {
-                log_error("[gtwy] gateway replace missing OrigClOrdID cl_ord_id=" + std::string(cl_ord_id) +
-                    " client_id=" + std::to_string(client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
             {
-                auto* mapped_order_id = cl_ord_id_to_order_id_.find(orig_cl_ord_key);
-                if (!mapped_order_id) {
-                    log_error("[gtwy] gateway replace references unknown OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
+                if (!resolve_existing_state("replace")) {
                     return false;
                 }
-                state = order_state_pool_.get(*mapped_order_id);
-                if (!state) {
-                    log_error("[gtwy] gateway replace resolved unmapped order_id=" + std::to_string(*mapped_order_id) +
-                        " for OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
+                state->params.action = ob::OrderAction::Modify;
+                if (!assign_ids() || !parse_symbol(false) || !parse_side(false)) {
                     return false;
                 }
-                if (state->params.id != *mapped_order_id) {
-                    log_error("[gtwy] gateway replace resolved stale state for OrigClOrdID=" + std::string(orig_cl_ord_id) +
-                        " order_id=" + std::to_string(*mapped_order_id) +
-                        " client_id=" + std::to_string(client_id) +
-                        " session=" + std::to_string(session_id));
+                parse_tif();
+                if (!parse_type_qty_px(false)) {
                     return false;
                 }
+                if (invalid_ord_type) {
+                    reason = ob::RejectReason::InvalidType;
+                }
+                else if (state->params.qty == 0) {
+                    reason = ob::RejectReason::InvalidQty;
+                }
+                break;
             }
-            state->params.action = ob::OrderAction::Modify;
-            break;
-
         default:
             log_error("[gtwy] gateway unsupported order MsgType=" + std::string(msg_type) +
                 " client_id=" + std::to_string(client_id) +
                 " session=" + std::to_string(session_id));
             return false;
-        }
-
-        if (!set_fixed_field(state->cl_ord_id, cl_ord_id)) {
-            log_error("[gtwy] gateway failed storing ClOrdID due to length order_id=" +
-                std::to_string(state->params.id) +
-                " client_id=" + std::to_string(state->params.client_id) +
-                " session=" + std::to_string(session_id));
-            return false;
-        }
-
-        if (!orig_cl_ord_id.empty()) {
-            if (!set_fixed_field(state->orig_cl_ord_id, orig_cl_ord_id)) {
-                log_error("[gtwy] gateway failed storing OrigClOrdID due to length order_id=" +
-                    std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
-        }
-
-        auto symbol = get_tag(msg, 55);
-        if (!symbol.empty()) {
-            uint16_t symbol_id = 0;
-            if (!parse_symbol_id(symbol, symbol_id)) {
-                log_error("[gtwy] gateway failed parsing symbol tag55 value=" + std::string(symbol) +
-                    " order_id=" + std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
-            state->params.symbol_id = symbol_id;
-        }
-        else if (state->params.action == ob::OrderAction::New) {
-            log_error("[gtwy] gateway new order missing symbol tag55 order_id=" + std::to_string(state->params.id) +
-                " client_id=" + std::to_string(state->params.client_id) +
-                " session=" + std::to_string(session_id));
-            return false;
-        }
-
-        auto side_tag = get_tag(msg, 54);
-        if (side_tag == "1") {
-            state->params.side = ob::Side::Buy;
-        }
-        else if (side_tag == "2") {
-            state->params.side = ob::Side::Sell;
-        }
-        else if (state->params.action == ob::OrderAction::New) {
-            log_error("[gtwy] gateway new order missing side tag54 order_id=" + std::to_string(state->params.id) +
-                " client_id=" + std::to_string(state->params.client_id) +
-                " session=" + std::to_string(session_id));
-            return false;
-        }
-
-        auto tif_tag = get_tag(msg, 59);
-        if (tif_tag.size() == 1) {
-            switch (tif_tag[0]) {
-            case '3':
-                state->params.tif = ob::TIF::IOC;
-                break;
-            case '4':
-                state->params.tif = ob::TIF::FOK;
-                break;
-            default:
-                state->params.tif = ob::TIF::GTC;
-                break;
-            }
-        }
-        else {
-            state->params.tif = ob::TIF::GTC;
-        }
-
-        bool invalid_ord_type = false;
-        auto ord_type_tag = get_tag(msg, 40);
-
-        if (state->params.action == ob::OrderAction::New || state->params.action == ob::OrderAction::Modify) {
-            if (ord_type_tag.empty()) {
-                if (state->params.action == ob::OrderAction::New) {
-                    invalid_ord_type = true;
-                }
-            }
-            else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
-                invalid_ord_type = true;
-            }
-        }
-
-        auto qty_tag = get_tag(msg, 38);
-
-        if (!qty_tag.empty()) {
-            uint64_t qty = 0;
-            if (!parse_uint64(qty_tag, qty)) {
-                log_error("[gtwy] gateway failed parsing qty tag38 value=" + std::string(qty_tag) +
-                    " order_id=" + std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
-            state->params.qty = qty;
-        }
-
-        auto price_tag = get_tag(msg, 44);
-        if (!price_tag.empty()) {
-            ob::PriceTick price = 0;
-            if (!parse_uint32(price_tag, price)) {
-                log_error("[gtwy] gateway failed parsing price tag44 value=" + std::string(price_tag) +
-                    " order_id=" + std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
-            if (state->params.type == ob::OrderType::StopLimit) {
-                state->params.limit_px = price;
-            }
-            else {
-                state->params.price = price;
-            }
-        }
-
-        auto stop_px = get_tag(msg, 99);
-        if (!stop_px.empty()) {
-            ob::PriceTick trigger = 0;
-            if (!parse_uint32(stop_px, trigger)) {
-                log_error("[gtwy] gateway failed parsing stop tag99 value=" + std::string(stop_px) +
-                    " order_id=" + std::to_string(state->params.id) +
-                    " client_id=" + std::to_string(state->params.client_id) +
-                    " session=" + std::to_string(session_id));
-                return false;
-            }
-            state->params.trigger = trigger;
-        }
-
-        if (state->params.type == ob::OrderType::StopMarket ||
-            state->params.type == ob::OrderType::StopLimit) {
-            if (state->params.trigger != 0) {
-                state->params.price = state->params.trigger;
-            }
-        }
-
-        ob::RejectReason reason = ob::RejectReason::NotApplicable;
-        if (state->params.action == ob::OrderAction::New) {
-            if (invalid_ord_type) {
-                reason = ob::RejectReason::InvalidType;
-            }
-            else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
-                reason = ob::RejectReason::InvalidPrice;
-            }
-            else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
-                reason = ob::RejectReason::InvalidPrice;
-            }
-            else if (state->params.type == ob::OrderType::StopLimit &&
-                (state->params.trigger == 0 || state->params.limit_px == 0)) {
-                reason = ob::RejectReason::InvalidPrice;
-            }
-        }
-        else if (state->params.action == ob::OrderAction::Modify && invalid_ord_type) {
-            reason = ob::RejectReason::InvalidType;
-        }
-
-        if (state->params.action == ob::OrderAction::Modify && state->params.qty == 0) {
-            reason = ob::RejectReason::InvalidQty;
         }
 
         if (reason != ob::RejectReason::NotApplicable) {
