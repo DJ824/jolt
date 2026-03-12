@@ -3,6 +3,7 @@
 //
 
 #include "FixGateway.h"
+#include "../include/thread_affinity.h"
 
 #include <atomic>
 #include <charconv>
@@ -53,6 +54,9 @@ namespace {
 }
 
 int main() {
+    // constexpr int kGatewayMainCpuId = 4;
+    // (void)jolt::threading::pin_current_thread_to_cpu(kGatewayMainCpuId, "entrygateway-main");
+
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
 

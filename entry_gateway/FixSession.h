@@ -15,10 +15,11 @@
 #include <string_view>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "GatewayTypes.h"
-#include "../include/spsc.h"
+#include "../include/spsc_new.h"
 
 
 namespace jolt::gateway {
@@ -34,7 +35,7 @@ namespace jolt::gateway {
     public:
 
         struct Message {
-            std::array<char, 1024> buf;
+            std::array<char, 1024> buf{};
             size_t len{0};
         };
 
@@ -60,7 +61,7 @@ namespace jolt::gateway {
 
         void send_to_gateway(FixMessage msg);
 
-        bool extract_message(std::string_view& msg);
+        std::pair<bool, size_t> extract_message(size_t slot_id);
         bool handle_message(std::string_view& msg);
         std::array<char, kRxCap> rx_buf_;
         LockFreeQueue<Message, kTxQueueSlots> tx_queue_{};
@@ -78,12 +79,8 @@ namespace jolt::gateway {
         bool write_interest_enabled_{false};
         void close();
 
-        uint64_t session_id_{0};
+        uint64_t conn_id{0};
         std::vector<uint64_t> client_ids_{};
-
-
-
-
     };
 
 }

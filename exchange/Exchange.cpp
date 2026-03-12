@@ -17,29 +17,6 @@ namespace jolt::exchange {
             return true;
         }
 
-        const char* order_action_text(ob::OrderAction action) {
-            switch (action) {
-            case ob::OrderAction::New:
-                return "New";
-            case ob::OrderAction::Modify:
-                return "Modify";
-            case ob::OrderAction::Cancel:
-                return "Cancel";
-            }
-            return "Unknown";
-        }
-
-        const char* exchange_msg_type_text(ExchToGtwyMsg::Type type) {
-            switch (type) {
-            case ExchToGtwyMsg::Type::Submitted:
-                return "Submitted";
-            case ExchToGtwyMsg::Type::Rejected:
-                return "Rejected";
-            case ExchToGtwyMsg::Type::Filled:
-                return "Filled";
-            }
-            return "Unknown";
-        }
     }
 
     Exchange::Exchange(ob::PriceTick min_tick,
@@ -226,21 +203,21 @@ namespace jolt::exchange {
         ack.order_id = order.id;
         publish_exchange_msg(ack);
 
-        ob::L3Data data{};
-        data.qty = event.qty;
-        data.event_type = event.event_type;
-        data.seq = event.seq;
-        data.side = event.side;
-        data.price = event.price;
-        data.event_type = event.event_type;
-        data.symbol_id = symbol_id;
-        publish_book_event(data);
-
-        mkt_data_[symbol_idx].push_back(data);
-        if (mkt_data_[symbol_idx].size() >= 1 << 10) {
-            writer_.write_batch(symbol_id, mkt_data_[symbol_idx].data(), mkt_data_[symbol_idx].size());
-            mkt_data_[symbol_idx].clear();
-        }
+        // ob::L3Data data{};
+        // data.qty = event.qty;
+        // data.event_type = event.event_type;
+        // data.seq = event.seq;
+        // data.side = event.side;
+        // data.price = event.price;
+        // data.event_type = event.event_type;
+        // data.symbol_id = symbol_id;
+        // publish_book_event(data);
+        //
+        // mkt_data_[symbol_idx].push_back(data);
+        // if (mkt_data_[symbol_idx].size() >= 1 << 10) {
+        //     writer_.write_batch(symbol_id, mkt_data_[symbol_idx].data(), mkt_data_[symbol_idx].size());
+        //     mkt_data_[symbol_idx].clear();
+        // }
     }
 
     void Exchange::update_risk(const ExchangeToRiskMsg& msg) {

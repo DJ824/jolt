@@ -50,7 +50,7 @@ namespace jolt::gateway {
             throw std::runtime_error("epoll_ctl() failed for wake fd");
         }
 
-        events_.resize(8192);
+        events_.resize(1 << 15);
         active_sessions_.resize(kMaxSessions + 1);
         session_view_ = std::make_unique<std::atomic<FixSession*>[]>(kMaxSessions + 1);
         for (size_t i = 0; i <= kMaxSessions; ++i) {
@@ -97,7 +97,7 @@ namespace jolt::gateway {
 
             auto session = std::make_unique<FixSession>("0", "0", session_fd);
             session.get()->gateway_ = gateway_;
-            session.get()->session_id_ = id;
+            session.get()->conn_id = id;
 
             active_sessions_[id] = std::move(session);
 
@@ -128,7 +128,7 @@ namespace jolt::gateway {
             return false;
         }
 
-        if (!session->queue_message({msg.data.data(), msg.len})) {
+        if (!session->queue_message({msg.data, msg.len})) {
             return false;
         }
 
@@ -145,7 +145,7 @@ namespace jolt::gateway {
 
     void EventLoop::drain_ready_sessions() {
         uint64_t id = 0;
-        while (ready_sessions_.try_dequeue(id)) {
+        while (ready_sessions_.try_dequeue(&id)) {
             if (id == 0 || id > kMaxSessions) {
                 continue;
             }
@@ -153,6 +153,7 @@ namespace jolt::gateway {
             if (!session || session->closed_.load(std::memory_order_acquire)) {
                 continue;
             }
+
             const int fd = session->fd_;
             if (!update_interest(session, fd, id, true)) {
                 session->close();
@@ -193,8 +194,7 @@ namespace jolt::gateway {
 
             if (id == kWakeupId) {
                 uint64_t value = 0;
-                while (::read(wake_fd_, &value, sizeof(value)) == sizeof(value)) {
-                }
+                while (::read(wake_fd_, &value, sizeof(value)) == sizeof(value)) {}
                 wake_pending_.store(false, std::memory_order_release);
                 drain_ready_sessions();
                 continue;
@@ -209,12 +209,14 @@ namespace jolt::gateway {
             if (!session || session->closed_.load(std::memory_order_acquire)) {
                 continue;
             }
-
             const int fd = session->fd_;
 
             if (mask & (EPOLLHUP | EPOLLRDHUP | EPOLLERR)) {
                 session->close();
                 remove_session(id, fd);
+                SocketEvent event{};
+                event.session_id = id;
+                socket_events_.enqueue(event);
                 continue;
             }
 
@@ -225,6 +227,9 @@ namespace jolt::gateway {
             session = (id < active_sessions_.size()) ? active_sessions_[id].get() : nullptr;
             if (!session || session->closed_.load(std::memory_order_acquire)) {
                 remove_session(id, fd);
+                SocketEvent event{};
+                event.session_id = id;
+                socket_events_.enqueue(event);
                 continue;
             }
 
@@ -235,8 +240,12 @@ namespace jolt::gateway {
             session = (id < active_sessions_.size()) ? active_sessions_[id].get() : nullptr;
             if (!session || session->closed_.load(std::memory_order_acquire)) {
                 remove_session(id, fd);
+                SocketEvent event{};
+                event.session_id = id;
+                socket_events_.enqueue(event);
                 continue;
             }
+
 
             bool want_write = session->want_write();
             if (!want_write) {
@@ -250,6 +259,10 @@ namespace jolt::gateway {
             if (!update_interest(session, fd, id, want_write)) {
                 session->close();
                 remove_session(id, fd);
+                SocketEvent event{};
+                event.session_id = id;
+                socket_events_.enqueue(event);
+
             }
         }
     }
@@ -318,6 +331,14 @@ namespace jolt::gateway {
             }
         }
         return count;
+    }
+
+    std::optional<SocketEvent> EventLoop::dequeue_socket_event() {
+        SocketEvent event{};
+        if (!socket_events_.try_dequeue(&event)) {
+            return std::nullopt;
+        }
+        return event;
     }
 
     EventLoop::~EventLoop() {

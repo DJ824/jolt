@@ -22,10 +22,7 @@ namespace jolt::ob {
     enum class BookEventType : uint8_t { New = 0, Cancel = 1, Modify = 2, Trade, Fill = 3, Reject = 4 };
 
     struct OrderParams {
-        OrderAction action{OrderAction::New};
-        OrderType type{OrderType::Limit};
         OrderId id{};
-        uint16_t symbol_id{0};
         uint64_t client_id;
         OrderId tp_id{0};
         OrderId sl_id{0};
@@ -38,11 +35,14 @@ namespace jolt::ob {
         PriceTick sl_limit_px{0};
         PriceTick tp_trigger{0};
         PriceTick tp_limit_px{0};
+        uint16_t symbol_id{0};
         TIF tif{TIF::GTC};
         TIF sl_tif{TIF::GTC};
         TIF tp_tif{TIF::GTC};
         Side side{Side::Buy};
         OrderType sl_post_type{OrderType::StopMarket};
+        OrderAction action{OrderAction::New};
+        OrderType type{OrderType::Limit};
     };
 
 

@@ -1,15 +1,16 @@
+
+
 #pragma once
 #include <array>
 #include <atomic>
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <optional>
 #include <utility>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <memory>
-#include <cstdlib>
-#include <stdexcept>
+#include <new>
 #include <type_traits>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -48,9 +49,9 @@ allocate_ring_bytes(size_t nbytes, const RingAllocOpt& opt, bool& got_huge) {
     got_huge = false;
 
     const size_t HUGEPG = 2 * 1024 * 1024;
-    const bool large = nbytes >= HUGEPG;
+    const bool can_try_huge = opt.try_huge && nbytes >= HUGEPG;
 
-    if (opt.try_huge) {
+    if (can_try_huge) {
         size_t map_len = (nbytes + HUGEPG - 1) / HUGEPG * HUGEPG;
         int flags = MAP_PRIVATE | MAP_ANONYMOUS;
         void* p = ::mmap(nullptr, map_len, PROT_READ | PROT_WRITE, flags, -1, 0);
@@ -82,7 +83,7 @@ allocate_ring_bytes(size_t nbytes, const RingAllocOpt& opt, bool& got_huge) {
     return {p, RingDeleter{nbytes, false}};
 }
 
-template <typename T, size_t SIZE = 2097152>
+template <typename T, size_t SIZE>
 class LockFreeQueue {
     static_assert((SIZE & (SIZE - 1)) == 0, "size must be power of 2");
     static constexpr size_t CAPACITY = SIZE;
@@ -92,6 +93,8 @@ class LockFreeQueue {
     alignas(CACHE_LINE_SIZE) std::atomic<size_t> head_{0};
     alignas(CACHE_LINE_SIZE) std::atomic<size_t> tail_{0};
     alignas(CACHE_LINE_SIZE) size_t head_cache_{0};
+    size_t pending_next_tail_{0};
+    bool write_pending_{false};
     alignas(CACHE_LINE_SIZE) size_t tail_cache_{0};
 
     using Slot = std::aligned_storage_t<sizeof(T), alignof(T)>;
@@ -128,42 +131,49 @@ public:
     LockFreeQueue(const LockFreeQueue&) = delete;
     LockFreeQueue& operator=(const LockFreeQueue&) = delete;
 
-    template <typename U>
-    bool enqueue(U&& item) {
+    T* request_write() {
+        if (write_pending_) [[unlikely]] {
+            return nullptr;
+        }
+
         const size_t curr_tail = tail_.load(std::memory_order_relaxed);
         const size_t next_tail = (curr_tail + 1) & MASK;
 
         if (next_tail == head_cache_) [[unlikely]] {
             head_cache_ = head_.load(std::memory_order_acquire);
             if (next_tail == head_cache_) {
-                return false;
+                return nullptr;
             }
         }
 
-        //__builtin_prefetch(get_slot(next_tail), 1, 1);
-        new (get_slot(curr_tail)) T(std::forward<U>(item));
-        tail_.store(next_tail, std::memory_order_release);
-        return true;
+        pending_next_tail_ = next_tail;
+        write_pending_ = true;
+        return get_slot(curr_tail);
     }
 
-    template <typename WriterFn>
-    bool enqueue_inplace(WriterFn&& writer) {
-        const size_t curr_tail = tail_.load(std::memory_order_relaxed);
-        const size_t next_tail = (curr_tail + 1) & MASK;
+    void commit_write() {
+        tail_.store(pending_next_tail_, std::memory_order_release);
+        write_pending_ = false;
+    }
 
-        if (next_tail == head_cache_) [[unlikely]] {
-            head_cache_ = head_.load(std::memory_order_acquire);
-            if (next_tail == head_cache_) {
-                return false;
-            }
-        }
+    void cancel_write() noexcept {
+        write_pending_ = false;
+    }
 
-        T* slot = get_slot(curr_tail);
-        if constexpr (!std::is_trivially_default_constructible_v<T>) {
-            new (slot) T();
+    template <typename U>
+    bool enqueue(U&& item) {
+        //__builtin_prefetch(get_slot(next_tail), 1, 1);
+        T* slot = request_write();
+        if (!slot) {
+            return false;
         }
-        writer(*slot);
-        tail_.store(next_tail, std::memory_order_release);
+        if constexpr (std::is_trivially_copyable_v<T> &&
+                      std::is_same_v<std::remove_cvref_t<U>, T>) {
+            std::memcpy(slot, std::addressof(item), sizeof(T));
+        } else {
+            new (slot) T(std::forward<U>(item));
+        }
+        commit_write();
         return true;
     }
 
@@ -189,32 +199,11 @@ public:
         head_.store((curr_head + 1) & MASK, std::memory_order_release);
     }
 
-    bool try_dequeue(T& out) {
-        const size_t curr_head = head_.load(std::memory_order_relaxed);
-        if (curr_head == tail_cache_) [[unlikely]] {
-            tail_cache_ = tail_.load(std::memory_order_acquire);
-            if (curr_head == tail_cache_) {
-                return false;
-            }
-        }
-
-        T* item_ptr = get_slot(curr_head);
-        out = std::move(*item_ptr);
-        if constexpr (!std::is_trivially_destructible_v<T>) {
-            item_ptr->~T();
-        }
-
-        head_.store((curr_head + 1) & MASK, std::memory_order_release);
-        return true;
-    }
-
     std::optional<T> dequeue() {
         const size_t curr_head = head_.load(std::memory_order_relaxed);
         if (curr_head == tail_cache_) [[unlikely]] {
             tail_cache_ = tail_.load(std::memory_order_acquire);
-            if (curr_head == tail_cache_) {
-                return std::nullopt;
-            }
+            if (curr_head == tail_cache_) return std::nullopt;
         }
 
         T* item_ptr = get_slot(curr_head);
@@ -224,10 +213,35 @@ public:
         }
 
         head_.store((curr_head + 1) & MASK, std::memory_order_release);
-        if (!result) {
-            return std::nullopt;
-        }
         return result;
+    }
+
+    bool try_dequeue(T* out) {
+        const size_t curr_head = head_.load(std::memory_order_relaxed);
+        if (curr_head == tail_cache_) [[unlikely]] {
+            tail_cache_ = tail_.load(std::memory_order_acquire);
+            if (curr_head == tail_cache_) {
+                return false;
+            }
+        }
+
+        T* item_ptr = get_slot(curr_head);
+        if (out) {
+            if constexpr (std::is_trivially_copyable_v<T>) {
+                std::memcpy(out, item_ptr, sizeof(T));
+            } else {
+                *out = std::move(*item_ptr);
+            }
+        }
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            item_ptr->~T();
+        }
+        head_.store((curr_head + 1) & MASK, std::memory_order_release);
+        return true;
+    }
+
+    bool try_pop(T& out) {
+        return try_dequeue(std::addressof(out));
     }
 
     bool empty() const {
@@ -245,3 +259,4 @@ public:
 
     bool using_huge_pages() const noexcept { return using_huge_; }
 };
+

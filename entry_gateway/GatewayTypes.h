@@ -19,10 +19,10 @@ namespace jolt {
 
     enum class State : uint8_t {PendingNew = 0, New = 1, PendingCancel = 2, Cancelled = 3, PendingReplace = 4, Replaced = 5, Filled = 6, Rejected = 7};
 
-    struct FixMessage {
-        std::array<char, kFixMaxMsg> data{};
-        size_t len{0};
+    struct alignas(64) FixMessage {
+        char data[kFixMaxMsg];
         uint64_t session_id{0};
+        size_t len{0};
     };
 
     struct OrderState {
@@ -56,6 +56,50 @@ namespace jolt {
             initialized = true;
         }
     };
+
+    enum class IngressKind : uint8_t { ClientFix = 0, ExchMsg = 1, Disconnect = 2};
+
+    struct ClientFixMsg {
+        uint64_t session_id;
+        uint64_t rx_ts_nsl;
+        uint32_t slot_id;
+        uint16_t len;
+    };
+
+    struct IngressEvent {
+        IngressKind kind;
+        union {
+            ClientFixMsg client_fix_msg;
+            ExchToGtwyMsg exch_msg;
+            uint64_t diconnected_sess_id;
+        };
+    };
+
+    enum class EgressKind : uint8_t { ToExch = 0, ToClient = 1, CloseSession = 2 };
+
+    struct ToClientMsg {
+        FixMessage fix;
+    };
+
+    struct EgressEvent {
+        EgressKind kind;
+        union {
+            GtwyToExchMsg to_exch;
+            ToClientMsg to_client;
+            uint64_t close_session_id;
+        };
+    };
+
+
+    struct SocketEvent {
+        enum class Kind : uint8_t {Disconnect = 0};
+        uint64_t session_id;
+    };
+
+
+
+
+
 
 
 }

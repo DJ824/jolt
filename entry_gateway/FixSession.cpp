@@ -79,11 +79,7 @@ namespace jolt::gateway {
             rx_off_ = 0;
             tx_off_ = 0;
             Message dropped{};
-            while (tx_queue_.try_dequeue(dropped)) {
-            }
-            if (gateway_) {
-                gateway_->on_disconnect(session_id_);
-            }
+            while (tx_queue_.try_dequeue(&dropped)) {}
         }
     }
 
@@ -122,15 +118,29 @@ namespace jolt::gateway {
 
     void FixSession::on_readable() {
         recv_pending();
-        std::string_view msg;
-        while (extract_message(msg)) {
-            if (msg.size() > kFixMaxMsg) {
-                continue;
+        if (!gateway_) {
+            return;
+        }
+
+        while (true) {
+            auto slot_id = gateway_->slot_ids.dequeue();
+            if (!slot_id) {
+                break;
             }
-            if (!gateway_ || !gateway_->on_fix_message(msg, session_id_)) {
-                log_error("[gtwy] gateway failed handling inbound FIX from client session=" +
-                          std::to_string(session_id_));
+
+            auto [ok, msg_len] = extract_message(*slot_id);
+            if (!ok) {
+                gateway_->slot_ids.enqueue(*slot_id);
+                break;
             }
+
+            ClientFixMsg msg{};
+            msg.slot_id = slot_id.value();
+            msg.len = msg_len;
+            msg.rx_ts_nsl = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+            msg.session_id = conn_id;
+            gateway_->client_ingress_q_.enqueue(msg);
         }
     }
 
@@ -140,7 +150,7 @@ namespace jolt::gateway {
         while (true) {
             while (tx_batch_size_ < kTxWritevBatch) {
                 Message next{};
-                if (!tx_queue_.try_dequeue(next)) {
+                if (!tx_queue_.try_dequeue(&next)) {
                     break;
                 }
                 tx_batch_[(tx_batch_head_ + tx_batch_size_) % kTxWritevBatch] = std::move(next);
@@ -200,7 +210,6 @@ namespace jolt::gateway {
                 }
             }
         }
-        return true;
     }
 
 
@@ -212,10 +221,18 @@ namespace jolt::gateway {
         return tx_batch_size_ != 0 || !tx_queue_.empty();
     }
 
-    bool FixSession::extract_message(std::string_view& msg) {
+    std::pair<bool, size_t> FixSession::extract_message(size_t slot_id) {
+        auto fail = []() -> std::pair<bool, size_t> { return {false, 0}; };
+        if (!gateway_) {
+            return fail();
+        }
+        if (slot_id >= gateway_->fix_messages_.size()) {
+            return fail();
+        }
+        FixMessage* out = &gateway_->fix_messages_[slot_id];
+
         std::string_view view(rx_buf_.data() + rx_off_, rx_len_ - rx_off_);
         auto preserve_partial_fix_prefix = [this, &view]() {
-            // Keep trailing '8' so a split "8=" across TCP packets can be recovered.
             if (!view.empty() && view.back() == '8') {
                 rx_buf_[0] = '8';
                 rx_off_ = 0;
@@ -225,69 +242,68 @@ namespace jolt::gateway {
             rx_off_ = rx_len_ = 0;
         };
         if (view.size() < 2) {
-            return false;
+            return fail();
         }
 
         if (view[0] != '8' || view[1] != '=') {
             size_t pos = view.find("8=");
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
         const char* base = rx_buf_.data() + rx_off_;
         const char* end = rx_buf_.data() + rx_len_;
         const char* soh = static_cast<const char*>(memchr(base, '\x01', end - base));
         if (!soh) {
-            return false;
+            return fail();
         }
 
         const char* body_len_start = soh + 1;
         if (body_len_start + 2 > end) {
-            // Partial header, wait for more bytes.
-            return false;
+            return fail();
         }
         if (body_len_start[0] != '9' || body_len_start[1] != '=') {
             size_t rel = static_cast<size_t>(soh - base + 1);
             size_t pos = view.find("8=", rel);
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
         const char* body_len_end = static_cast<const char*>(memchr(body_len_start + 2, '\x01', end - (body_len_start + 2)));
         if (!body_len_end) {
-            return false;
+            return fail();
         }
 
         size_t body_len = 0;
         auto [ptr, ec] = std::from_chars(body_len_start + 2, body_len_end, body_len);
         if (ec != std::errc() || ptr != body_len_end) {
             preserve_partial_fix_prefix();
-            return false;
+            return fail();
         }
 
         size_t body_start = (body_len_end - base) + 1;
         size_t body_end = body_start + body_len;
 
         if (body_end + 7 > static_cast<size_t>(end - base)) {
-            return false;
+            return fail();
         }
 
         if (base[body_end] != '1' || base[body_end + 1] != '0' || base[body_end + 2] != '=') {
             size_t pos = view.find("8=", 1);
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
         size_t trailer_end = body_end + 6;
@@ -295,10 +311,10 @@ namespace jolt::gateway {
             size_t pos = view.find("8=", 1);
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
         const std::string_view checksum_digits(base + body_end + 3, 3);
@@ -307,10 +323,10 @@ namespace jolt::gateway {
             size_t pos = view.find("8=", 1);
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
         uint32_t computed_checksum = 0;
@@ -322,19 +338,32 @@ namespace jolt::gateway {
             size_t pos = view.find("8=", 1);
             if (pos == std::string::npos) {
                 preserve_partial_fix_prefix();
-                return false;
+                return fail();
             }
             rx_off_ += pos;
-            return false;
+            return fail();
         }
 
-        msg = std::string_view(base, trailer_end + 1);
+        const size_t msg_len = trailer_end + 1;
+        if (msg_len > kFixMaxMsg) {
+            size_t pos = view.find("8=", 1);
+            if (pos == std::string::npos) {
+                preserve_partial_fix_prefix();
+                return fail();
+            }
+            rx_off_ += pos;
+            return fail();
+        }
+
+        std::memcpy(out->data, base, msg_len);
+        out->len = msg_len;
+        out->session_id = this->conn_id;
         rx_off_ += trailer_end + 1;
 
         if (rx_off_ == rx_len_) {
             rx_off_ = rx_len_ = 0;
         }
-        return true;
+        return {true, msg_len};
     }
 
     bool FixSession::queue_message(std::string_view msg) {

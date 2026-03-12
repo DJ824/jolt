@@ -3,6 +3,7 @@
 //
 
 #include "Exchange.h"
+#include "../include/thread_affinity.h"
 
 #include <array>
 #include <atomic>
@@ -21,6 +22,9 @@ namespace {
 }
 
 int main() {
+    // constexpr int kExchangeCpuId = 10;
+    // (void)jolt::threading::pin_current_thread_to_cpu(kExchangeCpuId, "exchange-main");
+
     constexpr const char* kReqQ = "snapshot_req_q";
     std::unique_ptr<jolt::exchange::Exchange::RequestQ> req_q_owner;
     try {

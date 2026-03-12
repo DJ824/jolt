@@ -723,8 +723,27 @@ namespace jolt::client {
             return{};
         }
 
-        if (!append_tag(1, account_)) {
-            return {};
+        const bool is_order_msg =
+            (msg_type == "D") || (msg_type == "F") || (msg_type == "G");
+        if (is_order_msg) {
+            bool has_account_tag = false;
+            for (const auto& [tag, _] : fields) {
+                if (tag == 1) {
+                    has_account_tag = true;
+                    break;
+                }
+            }
+
+            if (!has_account_tag) {
+                const std::string_view account_value =
+                    !account_.empty() ? std::string_view(account_) : std::string_view(sender_comp_id_);
+                if (account_value.empty()) {
+                    return {};
+                }
+                if (!append_tag(1, account_value)) {
+                    return {};
+                }
+            }
         }
 
         for (const auto& [tag,val] : fields) {

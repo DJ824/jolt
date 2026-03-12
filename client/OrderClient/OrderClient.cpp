@@ -393,7 +393,6 @@ namespace jolt::client {
             if (drained_out != nullptr) {
                 *drained_out = drained;
             }
-            // Allow one last drain pass on disconnect if messages were already buffered.
             return poll_ok || drained > 0;
         };
 

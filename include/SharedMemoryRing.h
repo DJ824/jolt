@@ -1,3 +1,432 @@
+// #pragma once
+//
+// #include <array>
+// #include <atomic>
+// #include <cerrno>
+// #include <cstddef>
+// #include <cstdint>
+// #include <cstring>
+// #include <chrono>
+// #include <cstdio>
+// #include <cstdlib>
+// #include <memory>
+// #include <mutex>
+// #include <optional>
+// #include <stdexcept>
+// #include <string>
+// #include <thread>
+// #include <type_traits>
+// #include <unordered_map>
+// #include <utility>
+//
+// #include <fcntl.h>
+// #include <sys/mman.h>
+// #include <sys/stat.h>
+// #include <unistd.h>
+//
+// #ifndef CACHE_LINE_SIZE
+// #define CACHE_LINE_SIZE 64
+// #endif
+//
+// enum class SharedRingMode : uint8_t { Create = 0, Attach = 1 };
+//
+// namespace shared_ring_detail {
+//     inline std::string normalize_shm_name(std::string name) {
+//         if (name.empty()) {
+//             throw std::runtime_error("shared ring name cannot be empty");
+//         }
+//         if (name.front() != '/') {
+//             name.insert(name.begin(), '/');
+//         }
+//         return name;
+//     }
+//
+//     inline bool should_use_local_fallback(int err) noexcept {
+//         return err == EPERM || err == EACCES || err == ENOSYS;
+//     }
+//
+//     inline size_t page_size() noexcept {
+//         const long ps = ::sysconf(_SC_PAGESIZE);
+//         return (ps > 0) ? static_cast<size_t>(ps) : static_cast<size_t>(4096);
+//     }
+//
+//     inline void prefault_write_pages(void* addr, const size_t bytes) noexcept {
+//         if (!addr || bytes == 0) {
+//             return;
+//         }
+//         const size_t ps = page_size();
+//         auto* p = static_cast<volatile std::byte*>(addr);
+//         for (size_t off = 0; off < bytes; off += ps) {
+//             p[off] = std::byte{0};
+//         }
+//         p[bytes - 1] = std::byte{0};
+//     }
+//
+//     struct LocalSegment {
+//         std::unique_ptr<std::byte[], void(*)(void*)> mem{nullptr, +[](void* p) { std::free(p); }};
+//         size_t size{0};
+//         size_t refs{0};
+//     };
+//
+//     inline std::unordered_map<std::string, LocalSegment>& local_segments() {
+//         static std::unordered_map<std::string, LocalSegment> segs;
+//         return segs;
+//     }
+//
+//     inline std::mutex& local_segments_mutex() {
+//         static std::mutex m;
+//         return m;
+//     }
+//
+//     inline void* acquire_local_segment(const std::string& name, size_t bytes, SharedRingMode mode) {
+//         std::lock_guard<std::mutex> lock(local_segments_mutex());
+//         auto& segs = local_segments();
+//         auto it = segs.find(name);
+//
+//         if (it == segs.end()) {
+//             if (mode == SharedRingMode::Attach) {
+//                 throw std::runtime_error("shared ring local segment not found");
+//             }
+//             void* raw = nullptr;
+//             if (::posix_memalign(&raw, CACHE_LINE_SIZE, bytes) != 0 || !raw) {
+//                 throw std::runtime_error("local segment allocation failed");
+//             }
+//             std::memset(raw, 0, bytes);
+//             LocalSegment seg;
+//             seg.mem.reset(static_cast<std::byte*>(raw));
+//             seg.size = bytes;
+//             seg.refs = 1;
+//             auto [inserted, ok] = segs.emplace(name, std::move(seg));
+//             (void)ok;
+//             return inserted->second.mem.get();
+//         }
+//
+//         if (it->second.size != bytes) {
+//             throw std::runtime_error("shared ring local segment size mismatch");
+//         }
+//         ++it->second.refs;
+//         return it->second.mem.get();
+//     }
+//
+//     inline void release_local_segment(const std::string& name) noexcept {
+//         std::lock_guard<std::mutex> lock(local_segments_mutex());
+//         auto& segs = local_segments();
+//         auto it = segs.find(name);
+//         if (it == segs.end()) {
+//             return;
+//         }
+//         if (it->second.refs > 0) {
+//             --it->second.refs;
+//         }
+//         if (it->second.refs == 0) {
+//             segs.erase(it);
+//         }
+//     }
+// }
+//
+//
+// struct SharedRingOptions {
+//     bool unlink_on_destroy{false};
+//     int permissions{0600};
+//     int wait_ms{1000};
+//     bool try_huge{true};
+//     bool prefault{true};
+//     bool mlock_pages{false};
+// };
+//
+// template <typename T, size_t CAPACITY>
+// class SharedSpscQueue {
+//     static_assert((CAPACITY & (CAPACITY - 1)) == 0, "capacity must be power of 2");
+//     static_assert(std::is_trivially_copyable_v<T>, "shared rings require trivially copyable types");
+//     static_assert(std::is_trivially_destructible_v<T>, "shared rings require trivially destructible types");
+//
+//         static constexpr uint64_t kMagic = 0x4A4F4C545152494EULL;
+//         static constexpr uint32_t kVersion = 1;
+//         static constexpr size_t kMask = CAPACITY - 1;
+//
+//         struct alignas(CACHE_LINE_SIZE) SharedReaderCacheLine {
+//             std::atomic<size_t> read_index_{0};
+//         };
+//
+//         struct alignas(CACHE_LINE_SIZE) SharedWriterCacheLine {
+//             std::atomic<size_t> write_index_{0};
+//         };
+//
+//         struct SharedRingHeader {
+//             uint64_t magic{0};
+//             uint32_t version{0};
+//             uint32_t capacity{0};
+//             uint32_t elem_size{0};
+//             uint32_t elem_align{0};
+//             uint32_t reserved{0};
+//             SharedReaderCacheLine reader_{};
+//             SharedWriterCacheLine writer_{};
+//             alignas(CACHE_LINE_SIZE) std::atomic<uint8_t> ready{0};
+//         };
+//
+//         struct alignas(CACHE_LINE_SIZE) WriterCacheLine {
+//             size_t read_index_cache_{0};
+//         };
+//
+//         struct alignas(CACHE_LINE_SIZE) ReaderCacheLine {
+//             size_t write_index_cache_{0};
+//         };
+//
+//         using Storage = std::array<T, CAPACITY>;
+//
+//         std::string name_;
+//         SharedRingOptions options_{};
+//         int fd_{-1};
+//         void* map_{nullptr};
+//         size_t map_size_{0};
+//         bool owner_{false};
+//         bool local_fallback_{false};
+//         SharedRingHeader* header_{nullptr};
+//         Storage* base_{nullptr};
+//         WriterCacheLine writer_cache_{};
+//         ReaderCacheLine reader_cache_{};
+//
+// public:
+//     SharedSpscQueue(const std::string& name, SharedRingMode mode, const SharedRingOptions& opt = {})
+//         : name_(shared_ring_detail::normalize_shm_name(name)), options_(opt) {
+//             const size_t bytes = bytes_needed();
+//             const int oflag = (mode == SharedRingMode::Create) ? (O_CREAT | O_RDWR) : O_RDWR;
+//             fd_ = ::shm_open(name_.c_str(), oflag, opt.permissions);
+//
+//             if (fd_ == -1) {
+//                 if (!shared_ring_detail::should_use_local_fallback(errno)) {
+//                     throw std::runtime_error("shm_open failed");
+//                 }
+//                 map_size_ = bytes;
+//                 map_ = shared_ring_detail::acquire_local_segment(name_, map_size_, mode);
+//                 local_fallback_ = true;
+//                 owner_ = (mode == SharedRingMode::Create);
+//                 std::fprintf(stderr,
+//                              "[SharedSpscQueue] shm_open unavailable (%s); using process-local fallback for %s\n",
+//                              std::strerror(errno),
+//                              name_.c_str());
+//                 init_view(mode);
+//                 return;
+//             }
+//
+//             owner_ = (mode == SharedRingMode::Create);
+//             if (mode == SharedRingMode::Create) {
+//                 if (::ftruncate(fd_, static_cast<off_t>(bytes)) != 0) {
+//                     ::close(fd_);
+//                     throw std::runtime_error("ftruncate failed");
+//                 }
+//             }
+//
+//             map_size_ = bytes;
+//             map_ = ::mmap(nullptr, map_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
+//             if (map_ == MAP_FAILED) {
+//                 ::close(fd_);
+//                 throw std::runtime_error("mmap failed");
+//             }
+//             tune_mapping(mode);
+//             init_view(mode);
+//         }
+//
+//         ~SharedSpscQueue() {
+//             if (local_fallback_) {
+//                 shared_ring_detail::release_local_segment(name_);
+//                 return;
+//             }
+//             if (map_ && map_ != MAP_FAILED) {
+//                 ::munmap(map_, map_size_);
+//             }
+//             if (fd_ != -1) {
+//                 ::close(fd_);
+//             }
+//             if (owner_ && options_.unlink_on_destroy) {
+//                 ::shm_unlink(name_.c_str());
+//             }
+//         }
+//
+//         SharedSpscQueue(const SharedSpscQueue&) = delete;
+//         SharedSpscQueue& operator=(const SharedSpscQueue&) = delete;
+//
+//         SharedSpscQueue(SharedSpscQueue&& other) noexcept { *this = std::move(other); }
+//
+//         SharedSpscQueue& operator=(SharedSpscQueue&& other) noexcept {
+//             if (this == &other) {
+//                 return *this;
+//             }
+//             name_ = std::move(other.name_);
+//             options_ = other.options_;
+//             fd_ = other.fd_;
+//             map_ = other.map_;
+//             map_size_ = other.map_size_;
+//             owner_ = other.owner_;
+//             local_fallback_ = other.local_fallback_;
+//             header_ = other.header_;
+//             base_ = other.base_;
+//             writer_cache_.read_index_cache_ = other.writer_cache_.read_index_cache_;
+//             reader_cache_.write_index_cache_ = other.reader_cache_.write_index_cache_;
+//             other.fd_ = -1;
+//             other.map_ = nullptr;
+//             other.map_size_ = 0;
+//             other.owner_ = false;
+//             other.local_fallback_ = false;
+//             other.header_ = nullptr;
+//             other.base_ = nullptr;
+//             return *this;
+//         }
+//
+//         template <typename U>
+//         bool enqueue(U&& item) {
+//             const size_t curr_tail = header_->writer_.write_index_.load(std::memory_order_relaxed);
+//             const size_t next_tail = (curr_tail + 1) & kMask;
+//             while (next_tail == writer_cache_.read_index_cache_) {
+//                 writer_cache_.read_index_cache_ = header_->reader_.read_index_.load(std::memory_order_acquire);
+//
+//             }
+//             (*base_)[curr_tail & kMask] = std::forward<U>(item);
+//             header_->writer_.write_index_.store(next_tail, std::memory_order_release);
+//             return true;
+//         }
+//
+//         bool try_dequeue(T& out) {
+//             const size_t curr_head = header_->reader_.read_index_.load(std::memory_order_relaxed);
+//             while (curr_head == reader_cache_.write_index_cache_) {
+//                 reader_cache_.write_index_cache_ = header_->writer_.write_index_.load(std::memory_order_acquire);
+//             }
+//             T* item_ptr = get_slot(curr_head);
+//             out = std::move(*item_ptr);
+//             header_->reader_.read_index_.store((curr_head + 1) & kMask, std::memory_order_release);
+//             return true;
+//         }
+//
+//         template <typename Fn>
+//         size_t drain(Fn&& fn, size_t max_items = CAPACITY - 1) {
+//             if (max_items == 0) {
+//                 return 0;
+//             }
+//
+//             const size_t curr_head = header_->reader_.read_index_.load(std::memory_order_relaxed);
+//             const size_t curr_tail = header_->writer_.write_index_.load(std::memory_order_acquire);
+//             reader_cache_.write_index_cache_ = curr_tail;
+//
+//             const size_t available = (curr_tail - curr_head) & kMask;
+//             if (available == 0) {
+//                 return 0;
+//             }
+//
+//             const size_t to_drain = available < max_items ? available : max_items;
+//             size_t idx = curr_head;
+//             for (size_t i = 0; i < to_drain; ++i) {
+//                 fn(*get_slot(idx));
+//                 idx = (idx + 1) & kMask;
+//             }
+//
+//             header_->reader_.read_index_.store(idx, std::memory_order_release);
+//             return to_drain;
+//         }
+//
+//         std::optional<T> dequeue() {
+//             const size_t curr_head = header_->reader_.read_index_.load(std::memory_order_relaxed);
+//             if (curr_head == reader_cache_.write_index_cache_) {
+//                 reader_cache_.write_index_cache_ = header_->writer_.write_index_.load(std::memory_order_acquire);
+//                 if (curr_head == reader_cache_.write_index_cache_) {
+//                     return std::nullopt;
+//                 }
+//             }
+//             T* item_ptr = get_slot(curr_head);
+//             std::optional<T> result(std::move(*item_ptr));
+//             header_->reader_.read_index_.store((curr_head + 1) & kMask, std::memory_order_release);
+//             return result;
+//         }
+//
+//         bool empty() const {
+//             return header_->reader_.read_index_.load(std::memory_order_acquire) ==
+//                 header_->writer_.write_index_.load(std::memory_order_acquire);
+//         }
+//
+//         size_t size() const {
+//             const size_t h = header_->reader_.read_index_.load(std::memory_order_acquire);
+//             const size_t t = header_->writer_.write_index_.load(std::memory_order_acquire);
+//             return (t - h) & kMask;
+//         }
+//
+//         size_t capacity() const { return CAPACITY - 1; }
+//
+//     private:
+//         static size_t align_up(size_t value, size_t align) {
+//             return (value + align - 1) & ~(align - 1);
+//         }
+//
+//         static size_t bytes_needed() {
+//             const size_t header = align_up(sizeof(SharedRingHeader), alignof(Storage));
+//             return header + sizeof(Storage);
+//         }
+//
+//         void tune_mapping(SharedRingMode mode) noexcept {
+// #if defined(__linux__)
+// #if defined(MADV_HUGEPAGE)
+//             if (options_.try_huge && map_size_ >= (2u * 1024u * 1024u)) {
+//                 (void)::madvise(map_, map_size_, MADV_HUGEPAGE);
+//             }
+// #endif
+// #if defined(MADV_WILLNEED)
+//             if (options_.prefault) {
+//                 (void)::madvise(map_, map_size_, MADV_WILLNEED);
+//             }
+// #endif
+//             if (options_.prefault && mode == SharedRingMode::Create) {
+//                 shared_ring_detail::prefault_write_pages(map_, map_size_);
+//             }
+//             if (options_.mlock_pages) {
+//                 (void)::mlock(map_, map_size_);
+//             }
+// #else
+//             (void)mode;
+// #endif
+//         }
+//
+//         void init_view(SharedRingMode mode) {
+//             header_ = reinterpret_cast<SharedRingHeader*>(map_);
+//             if (mode == SharedRingMode::Create) {
+//                 std::memset(header_, 0, sizeof(SharedRingHeader));
+//                 header_->magic = kMagic;
+//                 header_->version = kVersion;
+//                 header_->capacity = CAPACITY;
+//                 header_->elem_size = sizeof(T);
+//                 header_->elem_align = alignof(T);
+//                 header_->reader_.read_index_.store(0, std::memory_order_release);
+//                 header_->writer_.write_index_.store(0, std::memory_order_release);
+//                 header_->ready.store(1, std::memory_order_release);
+//             }
+//             else {
+//                 wait_ready();
+//                 if (header_->magic != kMagic || header_->version != kVersion ||
+//                     header_->capacity != CAPACITY || header_->elem_size != sizeof(T) ||
+//                     header_->elem_align != alignof(T)) {
+//                     throw std::runtime_error("shared ring header mismatch");
+//                 }
+//             }
+//
+//             const size_t header_bytes = align_up(sizeof(SharedRingHeader), alignof(Storage));
+//             base_ = reinterpret_cast<Storage*>(static_cast<std::byte*>(map_) + header_bytes);
+//         }
+//
+//         void wait_ready() {
+//             const auto deadline = std::chrono::steady_clock::now() +
+//                 std::chrono::milliseconds(options_.wait_ms);
+//             while (header_->ready.load(std::memory_order_acquire) == 0) {
+//                 if (std::chrono::steady_clock::now() > deadline) {
+//                     throw std::runtime_error("shared ring not ready");
+//                 }
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
+//             }
+//         }
+//
+//         T* get_slot(size_t idx) noexcept {
+//             return &(*base_)[idx & kMask];
+//         }
+//
+//     };
+
+
 #pragma once
 
 #include <array>
@@ -43,6 +472,23 @@ namespace shared_ring_detail {
 
     inline bool should_use_local_fallback(int err) noexcept {
         return err == EPERM || err == EACCES || err == ENOSYS;
+    }
+
+    inline size_t page_size() noexcept {
+        const long ps = ::sysconf(_SC_PAGESIZE);
+        return (ps > 0) ? static_cast<size_t>(ps) : static_cast<size_t>(4096);
+    }
+
+    inline void prefault_write_pages(void* addr, const size_t bytes) noexcept {
+        if (!addr || bytes == 0) {
+            return;
+        }
+        const size_t ps = page_size();
+        auto* p = static_cast<volatile std::byte*>(addr);
+        for (size_t off = 0; off < bytes; off += ps) {
+            p[off] = std::byte{0};
+        }
+        p[bytes - 1] = std::byte{0};
     }
 
     struct LocalSegment {
@@ -112,6 +558,9 @@ struct SharedRingOptions {
     bool unlink_on_destroy{false};
     int permissions{0600};
     int wait_ms{1000};
+    bool try_huge{true};
+    bool prefault{true};
+    bool mlock_pages{false};
 };
 
 template <typename T, size_t CAPACITY>
@@ -187,6 +636,7 @@ public:
                 ::close(fd_);
                 throw std::runtime_error("mmap failed");
             }
+            tune_mapping(mode);
             init_view(mode);
         }
 
@@ -328,6 +778,29 @@ public:
             return header + sizeof(Storage);
         }
 
+        void tune_mapping(SharedRingMode mode) noexcept {
+#if defined(__linux__)
+#if defined(MADV_HUGEPAGE)
+            if (options_.try_huge && map_size_ >= (2u * 1024u * 1024u)) {
+                (void)::madvise(map_, map_size_, MADV_HUGEPAGE);
+            }
+#endif
+#if defined(MADV_WILLNEED)
+            if (options_.prefault) {
+                (void)::madvise(map_, map_size_, MADV_WILLNEED);
+            }
+#endif
+            if (options_.prefault && mode == SharedRingMode::Create) {
+                shared_ring_detail::prefault_write_pages(map_, map_size_);
+            }
+            if (options_.mlock_pages) {
+                (void)::mlock(map_, map_size_);
+            }
+#else
+            (void)mode;
+#endif
+        }
+
         void init_view(SharedRingMode mode) {
             header_ = reinterpret_cast<SharedRingHeader*>(map_);
             if (mode == SharedRingMode::Create) {
@@ -340,6 +813,12 @@ public:
                 header_->head.store(0, std::memory_order_release);
                 header_->tail.store(0, std::memory_order_release);
                 header_->ready.store(1, std::memory_order_release);
+                if (options_.prefault) {
+                    std::fprintf(stderr,
+                                 "[SharedSpscQueue] ready name=%s bytes=%zu prefault=on\n",
+                                 name_.c_str(),
+                                 map_size_);
+                }
             }
             else {
                 wait_ready();
