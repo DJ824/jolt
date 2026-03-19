@@ -28,7 +28,7 @@ namespace jolt::md {
 
         using SnapshotRequestQ = SharedSpscQueue<SnapshotRequest, 1 << 8>;
         using SnapshotMetaQ = SharedSpscQueue<SnapshotMeta, 1 << 8>;
-        using SnapshotPool = SnapshotBlobPool<64, 1 << 20>;
+        using SnapshotPool = SlotPool<64, Page<1 << 20>>;
 
 
         static constexpr size_t kRxCap = 64 * 1024;
@@ -43,6 +43,7 @@ namespace jolt::md {
                 Kind kind;
                 uint32_t bytes;
                 uint16_t slot_idx;
+                uint32_t slot_gen{0};
                 std::vector<char> payload;
             };
 

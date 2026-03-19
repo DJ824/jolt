@@ -25,7 +25,9 @@ namespace jolt::gateway {
         constexpr uint64_t kWakeupId = (1ull << 63) - 1;
     }
 
-    EventLoop::EventLoop(int listen_fd) {
+    EventLoop::EventLoop(int listen_fd)
+        : ready_sessions_(std::make_unique<LockFreeQueue<uint64_t, 1 << 20>>()),
+          socket_events_(std::make_unique<LockFreeQueue<SocketEvent, 1 << 15>>()) {
         listen_fd_ = listen_fd;
         epoll_fd_ = epoll_create1(0);
         if (epoll_fd_ < 0) {
@@ -118,7 +120,7 @@ namespace jolt::gateway {
     }
 
     bool EventLoop::enqueue_outbound(const FixMessage& msg) {
-        const uint64_t id = msg.session_id;
+        const uint64_t id = msg.conn_id;
         if (id == 0 || id > kMaxSessions) {
             return false;
         }
@@ -133,7 +135,13 @@ namespace jolt::gateway {
         }
 
         if (!session->tx_armed_.exchange(true, std::memory_order_acq_rel)) {
-            while (!ready_sessions_.enqueue(id)) {
+            while (true) {
+                auto* slot = ready_sessions_->get_tail_ptr();
+                if (slot) {
+                    *slot = id;
+                    ready_sessions_->write();
+                    break;
+                }
                 if (session->closed_.load(std::memory_order_acquire)) {
                     return false;
                 }
@@ -144,8 +152,13 @@ namespace jolt::gateway {
     }
 
     void EventLoop::drain_ready_sessions() {
-        uint64_t id = 0;
-        while (ready_sessions_.try_dequeue(&id)) {
+        while (true) {
+            uint64_t* id_slot = ready_sessions_->get_head_ptr();
+            if (!id_slot) {
+                break;
+            }
+            const uint64_t id = *id_slot;
+            ready_sessions_->read();
             if (id == 0 || id > kMaxSessions) {
                 continue;
             }
@@ -216,7 +229,11 @@ namespace jolt::gateway {
                 remove_session(id, fd);
                 SocketEvent event{};
                 event.session_id = id;
-                socket_events_.enqueue(event);
+                auto* slot = socket_events_->get_tail_ptr();
+                if (slot) {
+                    slot->session_id = event.session_id;
+                    socket_events_->write();
+                }
                 continue;
             }
 
@@ -229,7 +246,11 @@ namespace jolt::gateway {
                 remove_session(id, fd);
                 SocketEvent event{};
                 event.session_id = id;
-                socket_events_.enqueue(event);
+                auto* slot = socket_events_->get_tail_ptr();
+                if (slot) {
+                    slot->session_id = event.session_id;
+                    socket_events_->write();
+                }
                 continue;
             }
 
@@ -242,7 +263,11 @@ namespace jolt::gateway {
                 remove_session(id, fd);
                 SocketEvent event{};
                 event.session_id = id;
-                socket_events_.enqueue(event);
+                auto* slot = socket_events_->get_tail_ptr();
+                if (slot) {
+                    slot->session_id = event.session_id;
+                    socket_events_->write();
+                }
                 continue;
             }
 
@@ -261,7 +286,11 @@ namespace jolt::gateway {
                 remove_session(id, fd);
                 SocketEvent event{};
                 event.session_id = id;
-                socket_events_.enqueue(event);
+                auto* slot = socket_events_->get_tail_ptr();
+                if (slot) {
+                    slot->session_id = event.session_id;
+                    socket_events_->write();
+                }
 
             }
         }
@@ -334,11 +363,14 @@ namespace jolt::gateway {
     }
 
     std::optional<SocketEvent> EventLoop::dequeue_socket_event() {
-        SocketEvent event{};
-        if (!socket_events_.try_dequeue(&event)) {
+        SocketEvent* event = socket_events_->get_head_ptr();
+        if (!event) {
             return std::nullopt;
         }
-        return event;
+        SocketEvent out{};
+        out.session_id = event->session_id;
+        socket_events_->read();
+        return out;
     }
 
     EventLoop::~EventLoop() {

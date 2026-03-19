@@ -22,10 +22,19 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+namespace jolt::gateway {
+    struct FixMsg {
+        std::array<std::string_view, 500> fields{};
+        std::bitset<500> present{};
+        char delim{'\x01'};
+    };
+}
+
 namespace {
     constexpr char kFixDelim = '\x01';
     constexpr size_t kFixTrackedTagCount = 500;
     constexpr size_t kDroppedPayloadPreviewBytes = 256;
+    using jolt::gateway::FixMsg;
 
 
     template <size_t N>
@@ -44,12 +53,6 @@ namespace {
         }
         return true;
     }
-
-    struct FixMsg {
-        std::array<std::string_view, kFixTrackedTagCount> fields{};
-        std::bitset<kFixTrackedTagCount> present{};
-        char delim{kFixDelim};
-    };
 
     std::string_view reject_reason_text(jolt::ob::RejectReason reason) {
         switch (reason) {
@@ -522,7 +525,9 @@ namespace jolt::gateway {
         : gtwy_exch_(gtwy_to_exch_name, SharedRingMode::Attach),
           exch_gtwy_(exch_to_gtwy_name, SharedRingMode::Attach),
           cl_ord_id_to_order_id_(2'000'000, ClOrdMapKey::empty(), ClOrdMapKey::tombstone(), 0.80f),
-          event_loop_(make_listen_socket(8080)) {
+          event_loop_(make_listen_socket(8080)),
+          slot_ids(std::make_unique<LockFreeQueue<size_t, 1 << 20>>()),
+          client_ingress_q_(std::make_unique<LockFreeQueue<ClientFixMsg, 1 << 20>>()) {
         event_loop_.set_gateway(this);
         sessions_.resize(1);
         clients_.reserve(2048);
@@ -534,7 +539,12 @@ namespace jolt::gateway {
         pending_outbound_.resize(1);
         conn_to_logical_.resize(EventLoop::kMaxSessions + 1, 0);
         for (int i = 0; i < 1 << 20; i++) {
-            slot_ids.enqueue(i);
+            auto* slot = slot_ids->get_tail_ptr();
+            if (!slot) {
+                break;
+            }
+            *slot = static_cast<size_t>(i);
+            slot_ids->write();
         }
 
     }
@@ -565,13 +575,25 @@ namespace jolt::gateway {
         GtwyToExchMsg msg{};
         msg.order = order;
         msg.client_id = order.client_id;
-        if (!gtwy_exch_.enqueue(msg)) {
-            reason = ob::RejectReason::NotApplicable;
-            log_error("[gtwy] gateway->exchange enqueue failed order_id=" + std::to_string(order.id) +
-                " client_id=" + std::to_string(order.client_id));
+
+        auto ptr = gtwy_exch_.alloc();
+        if (!ptr) {
+            // log err
             return false;
         }
 
+        ptr->order = order;
+        ptr->client_id = order.client_id;
+        gtwy_exch_.push();
+
+        // if (!gtwy_exch_.enqueue(msg)) {
+        //     reason = ob::RejectReason::NotApplicable;
+        //     log_error("[gtwy] gateway->exchange enqueue failed order_id=" + std::to_string(order.id) +
+        //         " client_id=" + std::to_string(order.client_id));
+        //     return false;
+        // }
+
+        // gtwy_exch_.enqueue(msg);
         reason = ob::RejectReason::NotApplicable;
         return true;
     }
@@ -852,7 +874,7 @@ namespace jolt::gateway {
         }
 
         out.len = msg.len;
-        out.session_id = state.session_id;
+        out.conn_id = state.session_id;
         return true;
     }
 
@@ -959,26 +981,14 @@ namespace jolt::gateway {
         return true;
     }
 
-    bool FixGateway::on_fix_message(const FixMessage& fix) {
-        const uint64_t conn_id = fix.session_id;
-        const std::string_view message(fix.data, fix.len);
-        thread_local FixMsg msg;
-        if (!parse_fix_simd(message, msg) && !parse_fix_message(message, msg)) {
-            log_error("[gtwy] gateway failed to parse FIX from client conn_id=" + std::to_string(conn_id) +
-                      " bytes=" + std::to_string(message.size()) +
-                      " payload=\"" + payload_preview_for_log(message) + "\"");
-            return false;
-        }
-
-        const auto msg_type = get_tag(msg, 35);
-        if (msg_type.empty()) {
-            log_error("[gtwy] gateway received FIX without MsgType conn_id=" + std::to_string(conn_id));
-            return false;
-        }
-
+    bool FixGateway::resolve_session_and_client(const uint64_t conn_id,
+                                                const FixMsg& msg,
+                                                const bool is_logon,
+                                                uint64_t& logical_session_id,
+                                                uint64_t& client_id,
+                                                SessionState*& session) {
         const auto sender = get_tag(msg, 49);
         const auto target = get_tag(msg, 56);
-
         if (sender.empty() || target.empty()) {
             log_error("[gtwy] gateway received FIX missing CompIDs conn_id=" + std::to_string(conn_id));
             return false;
@@ -989,12 +999,10 @@ namespace jolt::gateway {
             return false;
         }
 
-        uint64_t logical_session_id = 0;
-        if (msg_type == "A") {
+        if (is_logon) {
             logical_session_id = resolve_logical_session_id(sender);
             bind_logical_session(logical_session_id, conn_id);
-        }
-        else {
+        } else {
             logical_session_id = conn_to_logical_[conn_id];
             if (logical_session_id == 0) {
                 log_error("[gtwy] gateway dropped non-logon FIX for unbound conn_id=" +
@@ -1003,13 +1011,12 @@ namespace jolt::gateway {
             }
         }
 
-        auto* session = get_or_create_session(logical_session_id);
+        session = get_or_create_session(logical_session_id);
         if (!session) {
             log_error("[gtwy] gateway failed to resolve logical session state logical_session_id=" +
                 std::to_string(logical_session_id));
             return false;
         }
-        const uint64_t session_id = logical_session_id;
 
         if (session->sender_comp_id.empty()) {
             session->sender_comp_id = std::string(sender);
@@ -1018,47 +1025,71 @@ namespace jolt::gateway {
             session->target_comp_id = std::string(target);
         }
 
-        auto account = get_tag(msg, 1);
-
-        uint64_t client_id = id_from_cl_ord_id(account);
-
+        const auto account = get_tag(msg, 1);
+        client_id = id_from_cl_ord_id(account);
         auto client_it = clients_.find(client_id);
-
         if (client_it == clients_.end()) {
             auto client = std::make_unique<Client>(client_id);
             client->set_gateway(this);
             client->set_session_id(logical_session_id);
             clients_.emplace(client_id, std::move(client));
-        }
-        else {
+        } else {
             client_it->second->set_session_id(logical_session_id);
         }
+        return true;
+    }
 
-        if (msg_type == "A") {
-            FixMessage out;
-            if (!build_logon(out, session, 30, false)) {
-                log_error("[gtwy] failed to build logon msg conn_id=" + std::to_string(conn_id));
-                return false;
-            }
-            session->logged_on = true;
-            out.session_id = conn_id;
-            if (!event_loop_.enqueue_outbound(out)) {
-                log_error("[gtwy] failed to enqueue logon msg conn_id=" + std::to_string(conn_id));
-                return false;
-            }
-            flush_pending_for_logical_session(logical_session_id);
-            return true;
+    bool FixGateway::handle_logon_message(const uint64_t conn_id, const FixMsg& msg) {
+        uint64_t logical_session_id = 0;
+        uint64_t client_id = 0;
+        SessionState* session = nullptr;
+        if (!resolve_session_and_client(conn_id, msg, true, logical_session_id, client_id, session)) {
+            return false;
         }
+        (void)client_id;
 
-        if (!is_client_order_msg_type(msg_type)) {
-            if (msg_type == "0" || msg_type == "1" || msg_type == "5") {
-                return true;
-            }
-            log_warn("[gtwy] gateway ignoring non-order MsgType=" + std::string(msg_type) +
-                     " client_id=" + std::to_string(client_id) +
-                     " logical_session_id=" + std::to_string(logical_session_id));
-            return true;
+        FixMessage out;
+        if (!build_logon(out, session, 30, false)) {
+            log_error("[gtwy] failed to build logon msg conn_id=" + std::to_string(conn_id));
+            return false;
         }
+        session->logged_on = true;
+        out.conn_id = conn_id;
+        if (!event_loop_.enqueue_outbound(out)) {
+            log_error("[gtwy] failed to enqueue logon msg conn_id=" + std::to_string(conn_id));
+            return false;
+        }
+        flush_pending_for_logical_session(logical_session_id);
+        return true;
+    }
+
+    bool FixGateway::handle_control_message(const uint64_t conn_id, const FixMsg& msg, const char msg_type) {
+        uint64_t logical_session_id = 0;
+        uint64_t client_id = 0;
+        SessionState* session = nullptr;
+        if (!resolve_session_and_client(conn_id, msg, false, logical_session_id, client_id, session)) {
+            return false;
+        }
+        (void)logical_session_id;
+        (void)client_id;
+        (void)session;
+        (void)msg_type;
+        return true;
+    }
+
+    bool FixGateway::handle_order_message(const uint64_t conn_id,
+                                          const FixMessage& fix,
+                                          const FixMsg& msg,
+                                          const char order_msg_type) {
+        uint64_t logical_session_id = 0;
+        uint64_t client_id = 0;
+        SessionState* session = nullptr;
+        if (!resolve_session_and_client(conn_id, msg, false, logical_session_id, client_id, session)) {
+            return false;
+        }
+        const uint64_t session_id = logical_session_id;
+        const std::string_view message(fix.data, fix.len);
+        const std::string_view msg_type(&order_msg_type, 1);
 
         OrderState* state = nullptr;
         const auto cl_ord_id = get_tag(msg, 11);
@@ -1088,13 +1119,6 @@ namespace jolt::gateway {
                 " max_len=" + std::to_string(kOrderStateTextMaxLen));
             return false;
         }
-
-        if (msg_type.size() != 1) {
-            log_error("[gtwy] gateway received invalid MsgType for order client_id=" + std::to_string(client_id) +
-                " session=" + std::to_string(session_id));
-            return false;
-        }
-        const char order_msg_type = msg_type[0];
 
         log_info("[gtwy] gateway received order from client msg_type=" + std::string(msg_type) +
             " cl_ord_id=" + std::string(cl_ord_id) +
@@ -1223,8 +1247,7 @@ namespace jolt::gateway {
                 if (ord_type_required) {
                     invalid_ord_type = true;
                 }
-            }
-            else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
+            } else if (!parse_fix_ord_type(ord_type_tag, state->params.type)) {
                 invalid_ord_type = true;
             }
 
@@ -1253,8 +1276,7 @@ namespace jolt::gateway {
                 }
                 if (state->params.type == ob::OrderType::StopLimit) {
                     state->params.limit_px = price;
-                }
-                else {
+                } else {
                     state->params.price = price;
                 }
             }
@@ -1313,14 +1335,11 @@ namespace jolt::gateway {
                 }
                 if (invalid_ord_type) {
                     reason = ob::RejectReason::InvalidType;
-                }
-                else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
+                } else if (state->params.type == ob::OrderType::Limit && state->params.price == 0) {
                     reason = ob::RejectReason::InvalidPrice;
-                }
-                else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
+                } else if (state->params.type == ob::OrderType::StopMarket && state->params.trigger == 0) {
                     reason = ob::RejectReason::InvalidPrice;
-                }
-                else if (state->params.type == ob::OrderType::StopLimit &&
+                } else if (state->params.type == ob::OrderType::StopLimit &&
                     (state->params.trigger == 0 || state->params.limit_px == 0)) {
                     reason = ob::RejectReason::InvalidPrice;
                 }
@@ -1336,6 +1355,10 @@ namespace jolt::gateway {
                 if (!resolve_existing_state("cancel")) {
                     return false;
                 }
+
+                if (state->state == State::PendingNew || state->state == State::PendingCancel || state->state == State::PendingReplace) {
+                    return false;
+                }
                 state->params.action = ob::OrderAction::Cancel;
                 if (!assign_ids()) {
                     return false;
@@ -1348,8 +1371,14 @@ namespace jolt::gateway {
                 if (!resolve_existing_state("replace")) {
                     return false;
                 }
+
+                if (state->state == State::PendingNew || state->state == State::PendingCancel || state->state == State::PendingReplace) {
+                    return false;
+                }
+
                 state->params.action = ob::OrderAction::Modify;
                 if (!assign_ids() || !parse_symbol(false) || !parse_side(false)) {
+                    std::cout << 11 << std::endl;
                     return false;
                 }
                 parse_tif();
@@ -1358,8 +1387,7 @@ namespace jolt::gateway {
                 }
                 if (invalid_ord_type) {
                     reason = ob::RejectReason::InvalidType;
-                }
-                else if (state->params.qty == 0) {
+                } else if (state->params.qty == 0) {
                     reason = ob::RejectReason::InvalidQty;
                 }
                 state->state = State::PendingReplace;
@@ -1413,7 +1441,45 @@ namespace jolt::gateway {
         return true;
     }
 
+    bool FixGateway::on_fix_message(const FixMessage& fix) {
+        const uint64_t conn_id = fix.conn_id;
+        const std::string_view message(fix.data, fix.len);
+        thread_local FixMsg msg;
+        if (!parse_fix_simd(message, msg) /*&& !parse_fix_message(message, msg)*/) {
+            log_error("[gtwy] gateway failed to parse FIX from client conn_id=" + std::to_string(conn_id) +
+                      " bytes=" + std::to_string(message.size()) +
+                      " payload=\"" + payload_preview_for_log(message) + "\"");
+            return false;
+        }
 
+        const auto msg_type = get_tag(msg, 35);
+        if (msg_type.empty()) {
+            log_error("[gtwy] gateway received FIX without MsgType conn_id=" + std::to_string(conn_id));
+            return false;
+        }
+        if (msg_type.size() != 1) {
+            log_error("[gtwy] gateway received invalid MsgType conn_id=" + std::to_string(conn_id) +
+                " msg_type=" + std::string(msg_type));
+            return false;
+        }
+
+        switch (msg_type[0]) {
+        case 'A':
+            return handle_logon_message(conn_id, msg);
+        case 'D':
+        case 'F':
+        case 'G':
+            return handle_order_message(conn_id, fix, msg, msg_type[0]);
+        case '0':
+        case '1':
+        case '5':
+            return handle_control_message(conn_id, msg, msg_type[0]);
+        default:
+            log_warn("[gtwy] gateway ignoring non-order MsgType=" + std::string(msg_type) +
+                " conn_id=" + std::to_string(conn_id));
+            return true;
+        }
+    }
 
     // void FixGateway::exchange_rx_loop() {
     //     while (running_.load(std::memory_order_acquire)) {
@@ -1436,7 +1502,7 @@ namespace jolt::gateway {
                 pending.pop_front();
             }
             FixMessage queued = msg;
-            queued.session_id = logical_session_id;
+            queued.conn_id = logical_session_id;
             pending.push_back(queued);
         };
 
@@ -1446,7 +1512,7 @@ namespace jolt::gateway {
             return true;
         }
 
-        msg.session_id = conn_id;
+        msg.conn_id = conn_id;
         if (event_loop_.enqueue_outbound(msg)) {
             return true;
         }
@@ -1468,7 +1534,7 @@ namespace jolt::gateway {
             }
 
             FixMessage next = pending.front();
-            next.session_id = conn_id;
+            next.conn_id = conn_id;
             if (!event_loop_.enqueue_outbound(next)) {
                 on_disconnect(conn_id);
                 break;
@@ -1635,18 +1701,21 @@ namespace jolt::gateway {
         constexpr int kClientBudget = 256;
         constexpr int kSocketBudget = 64;
         constexpr int kExchBudget = 256;
-        bool did_work = false;
 
         while (running_.load(std::memory_order_acquire)) {
-            for (int n = 0; n < kClientBudget; ++n) {
-                auto ev = client_ingress_q_.dequeue();
-                if (!ev) {
-                    break;
-                }
-                auto& fix = fix_messages_[ev->slot_id];
-                fix.session_id = ev->session_id;
+            bool did_work = false;
+
+            const size_t client_drained = client_ingress_q_->drain([&](const ClientFixMsg& ev) {
+                auto& fix = fix_messages_[ev.slot_id];
+                fix.conn_id = ev.session_id;
                 on_fix_message(fix);
-                slot_ids.enqueue(ev->slot_id);
+                auto* slot = slot_ids->get_tail_ptr();
+                if (slot) {
+                    *slot = ev.slot_id;
+                    slot_ids->write();
+                }
+            }, kClientBudget);
+            if (client_drained > 0) {
                 did_work = true;
             }
 
@@ -1659,13 +1728,10 @@ namespace jolt::gateway {
                 did_work = true;
             }
 
-            for (int n = 0; n < kExchBudget; ++n) {
-                auto msg = exch_gtwy_.dequeue();
-                if (!msg) {
-                    break;
-                }
-
-                handle_exchange_msg(*msg);
+            const size_t exch_drained = exch_gtwy_.drain([&](const ExchToGtwyMsg& msg) {
+                handle_exchange_msg(msg);
+            }, kExchBudget);
+            if (exch_drained > 0) {
                 did_work = true;
             }
 

@@ -1,5 +1,7 @@
+
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -45,14 +47,16 @@ class LockFreeQueue {
 
     using Slot = std::aligned_storage_t<sizeof(T), alignof(T)>;
     static constexpr size_t NSLOTS = CAPACITY + 2 * PADDING;
-    std::unique_ptr<Slot[]> storage_;
-    Slot* base_{nullptr};
+    std::array<Slot, NSLOTS> buffer_{};
+
+    [[nodiscard]] T* slot_ptr(size_t index) noexcept {
+        return std::launder(
+            reinterpret_cast<T*>(buffer_.data() + index + PADDING));
+    }
 
 public:
-    explicit LockFreeQueue(const RingAllocOpt& opt = {})
-        : storage_(std::make_unique<Slot[]>(NSLOTS)) {
+    explicit LockFreeQueue(const RingAllocOpt& opt = {}) {
         (void)opt;
-        base_ = storage_.get();
     }
 
     ~LockFreeQueue() {
@@ -70,7 +74,7 @@ public:
     LockFreeQueue& operator=(const LockFreeQueue&) = delete;
 
     template <typename... Args>
-    void emplace(Args&&... args) {
+    void emplace(Args&&... args) noexcept {
         const size_t write_index = writer_.write_index_.load(std::memory_order_relaxed);
         const size_t next_write_index = (write_index + 1) & MASK;
 
@@ -122,7 +126,7 @@ public:
         return true;
     }
 
-    void pop(T& out) {
+    void pop(T& out) noexcept {
         const size_t read_index = reader_.read_index_.load(std::memory_order_relaxed);
 
         while (read_index == reader_.write_index_cache_) [[unlikely]] {
@@ -256,8 +260,95 @@ public:
 
     bool using_huge_pages() const noexcept { return false; }
 
-private:
-    [[nodiscard]] T* slot_ptr(size_t index) noexcept {
-        return std::launder(reinterpret_cast<T*>(base_ + (index & MASK) + writer_.padding_cache_));
+
+    T* get_tail_ptr() {
+        const size_t write_index = writer_.write_index_.load(std::memory_order_relaxed);
+        const size_t next_write_index = (write_index + 1) & MASK;
+
+        if (next_write_index == writer_.read_index_cache_) [[unlikely]] {
+            writer_.read_index_cache_ = reader_.read_index_.load(std::memory_order_acquire);
+            if (next_write_index == writer_.read_index_cache_) {
+                return nullptr;
+            }
+
+        }
+
+        return slot_ptr(write_index);
     }
+
+    void write() {
+        const size_t write_index = writer_.write_index_.load(std::memory_order_relaxed);
+        const size_t next_write_index = (write_index + 1) & MASK;
+        writer_.write_index_.store(next_write_index, std::memory_order_release);
+    }
+
+    T* get_head_ptr() {
+        const size_t read_index = reader_.read_index_.load(std::memory_order_relaxed);
+        if (read_index == reader_.write_index_cache_) [[unlikely]] {
+            reader_.write_index_cache_ = writer_.write_index_.load(std::memory_order_acquire);
+            if (read_index == reader_.write_index_cache_) {
+                return nullptr;
+            }
+        }
+
+        return slot_ptr(read_index);
+    }
+
+    void read() {
+        const size_t read_index = reader_.read_index_.load(std::memory_order_relaxed);
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            slot_ptr(read_index)->~T();
+        }
+        const size_t next_read_index = (read_index + 1) & MASK;
+        reader_.read_index_.store(next_read_index, std::memory_order_release);
+    }
+
+    template <typename Writer>
+    bool try_write(Writer writer) {
+        T* ptr = get_tail_ptr();
+        if (!ptr) {
+            return false;
+        }
+
+        writer(ptr);
+        write();
+        return true;
+    }
+
+    template <typename Reader>
+    bool try_read(Reader reader) {
+        T* ptr = get_head_ptr();
+        if (!ptr) {
+            return false;
+        }
+        reader(ptr);
+        read();
+        return true;
+    }
+
+
+    template <typename Fn>
+      size_t drain(Fn&& fn, size_t max_items = CAPACITY - 1) {
+        if (max_items == 0) {
+            return 0;
+        }
+
+        size_t drained = 0;
+        while (drained < max_items) {
+            T* item = front();
+            if (!item) {
+                break;
+            }
+            fn(*item);
+            pop();
+            ++drained;
+        }
+        return drained;
+    }
+
+
 };
+
+
+
+

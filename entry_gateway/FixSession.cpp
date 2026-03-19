@@ -78,8 +78,9 @@ namespace jolt::gateway {
             rx_len_ = 0;
             rx_off_ = 0;
             tx_off_ = 0;
-            Message dropped{};
-            while (tx_queue_.try_dequeue(&dropped)) {}
+            while (tx_queue_.get_head_ptr()) {
+                tx_queue_.read();
+            }
         }
     }
 
@@ -123,24 +124,38 @@ namespace jolt::gateway {
         }
 
         while (true) {
-            auto slot_id = gateway_->slot_ids.dequeue();
-            if (!slot_id) {
+            auto* free_slot = gateway_->slot_ids->get_head_ptr();
+            if (!free_slot) {
                 break;
             }
+            const size_t slot_id = *free_slot;
+            gateway_->slot_ids->read();
 
-            auto [ok, msg_len] = extract_message(*slot_id);
+            auto [ok, msg_len] = extract_message(slot_id);
             if (!ok) {
-                gateway_->slot_ids.enqueue(*slot_id);
+                auto* ret_slot = gateway_->slot_ids->get_tail_ptr();
+                if (ret_slot) {
+                    *ret_slot = slot_id;
+                    gateway_->slot_ids->write();
+                }
                 break;
             }
 
-            ClientFixMsg msg{};
-            msg.slot_id = slot_id.value();
-            msg.len = msg_len;
-            msg.rx_ts_nsl = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            auto* ingress_slot = gateway_->client_ingress_q_->get_tail_ptr();
+            if (!ingress_slot) {
+                auto* ret_slot = gateway_->slot_ids->get_tail_ptr();
+                if (ret_slot) {
+                    *ret_slot = slot_id;
+                    gateway_->slot_ids->write();
+                }
+                break;
+            }
+            ingress_slot->slot_id = static_cast<uint32_t>(slot_id);
+            ingress_slot->len = msg_len;
+            ingress_slot->rx_ts_nsl = std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-            msg.session_id = conn_id;
-            gateway_->client_ingress_q_.enqueue(msg);
+            ingress_slot->session_id = conn_id;
+            gateway_->client_ingress_q_->write();
         }
     }
 
@@ -149,11 +164,12 @@ namespace jolt::gateway {
     bool FixSession::send_pending() {
         while (true) {
             while (tx_batch_size_ < kTxWritevBatch) {
-                Message next{};
-                if (!tx_queue_.try_dequeue(&next)) {
+                Message* queued = tx_queue_.get_head_ptr();
+                if (!queued) {
                     break;
                 }
-                tx_batch_[(tx_batch_head_ + tx_batch_size_) % kTxWritevBatch] = std::move(next);
+                tx_batch_[(tx_batch_head_ + tx_batch_size_) % kTxWritevBatch] = std::move(*queued);
+                tx_queue_.read();
                 ++tx_batch_size_;
             }
 
@@ -357,7 +373,7 @@ namespace jolt::gateway {
 
         std::memcpy(out->data, base, msg_len);
         out->len = msg_len;
-        out->session_id = this->conn_id;
+        out->conn_id = this->conn_id;
         rx_off_ += trailer_end + 1;
 
         if (rx_off_ == rx_len_) {
@@ -373,9 +389,13 @@ namespace jolt::gateway {
         if (msg.size() > kTxCap) {
             throw std::runtime_error("msg too big for client tx");
         }
-        Message m{};
-        m.len = msg.size();
-        memcpy(m.buf.data(), msg.data(), m.len);
-        return tx_queue_.enqueue(std::move(m));
+        Message* slot = tx_queue_.get_tail_ptr();
+        if (!slot) {
+            return false;
+        }
+        slot->len = msg.size();
+        std::memcpy(slot->buf.data(), msg.data(), slot->len);
+        tx_queue_.write();
+        return true;
     }
 }

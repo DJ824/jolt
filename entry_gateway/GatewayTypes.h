@@ -21,7 +21,7 @@ namespace jolt {
 
     struct alignas(64) FixMessage {
         char data[kFixMaxMsg];
-        uint64_t session_id{0};
+        uint64_t conn_id{0};
         size_t len{0};
     };
 

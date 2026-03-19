@@ -29,7 +29,7 @@ namespace jolt::exchange {
         using RiskToExch = SharedSpscQueue<RiskToExchMsg, 1 << 15>;
         using SnapshotMetaQ = SharedSpscQueue<md::SnapshotMeta, 1 << 8>;
         using SnapshotChunkQ = SharedSpscQueue<SnapshotChunk, 1 << 15>;
-        using SnapshotBlob = SnapshotBlobPool<64, 1 << 20>;
+        using SnapshotBlob = SlotPool<64, Page<1 << 20>>;
         using RequestQ = SharedSpscQueue<md::DataRequest, 1 << 8>;
 
 

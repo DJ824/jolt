@@ -43,12 +43,13 @@ public:
 
     void log(Level level, std::string_view msg) {
         ensure_running();
-        Record rec;
-        rec.level = level;
-        rec.len = static_cast<uint16_t>(std::min<std::size_t>(msg.size(), sizeof(rec.msg) - 1));
-        std::memcpy(rec.msg, msg.data(), rec.len);
-        rec.msg[rec.len] = '\0';
-        (void)queue_.enqueue(std::move(rec));
+        if (Record* slot = queue_.get_tail_ptr()) {
+            slot->level = level;
+            slot->len = static_cast<uint16_t>(std::min<std::size_t>(msg.size(), sizeof(slot->msg) - 1));
+            std::memcpy(slot->msg, msg.data(), slot->len);
+            slot->msg[slot->len] = '\0';
+            queue_.write();
+        }
     }
 
     void info(std::string_view msg) { log(Level::Info, msg); }
@@ -100,14 +101,16 @@ private:
 
     void run() {
         while (running_.load(std::memory_order_relaxed)) {
-            if (auto rec = queue_.dequeue()) {
+            if (Record* rec = queue_.get_head_ptr()) {
                 write_line(rec->level, rec->msg, rec->len);
+                queue_.read();
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(5));
             }
         }
-        while (auto rec = queue_.dequeue()) {
+        while (Record* rec = queue_.get_head_ptr()) {
             write_line(rec->level, rec->msg, rec->len);
+            queue_.read();
         }
     }
 

@@ -23,6 +23,8 @@
 #include "GatewayTypes.h"
 
 namespace jolt::gateway {
+    struct FixMsg;
+
     struct ClOrdMapKey {
         static constexpr uint8_t kEmptyLen = 0;
         static constexpr uint8_t kTombstoneLen = 0xFF;
@@ -86,6 +88,18 @@ namespace jolt::gateway {
         bool route_outbound_or_queue(uint64_t logical_session_id, FixMessage& msg);
         void flush_pending_for_logical_session(uint64_t logical_session_id);
         void exchange_rx_loop();
+        bool resolve_session_and_client(uint64_t conn_id,
+                                        const FixMsg& msg,
+                                        bool is_logon,
+                                        uint64_t& logical_session_id,
+                                        uint64_t& client_id,
+                                        SessionState*& session);
+        bool handle_logon_message(uint64_t conn_id, const FixMsg& msg);
+        bool handle_order_message(uint64_t conn_id,
+                                  const FixMessage& fix,
+                                  const FixMsg& msg,
+                                  char order_msg_type);
+        bool handle_control_message(uint64_t conn_id, const FixMsg& msg, char msg_type);
 
         static bool build_exec_report(FixMessage& out,
                                       SessionState* session,
@@ -130,9 +144,9 @@ namespace jolt::gateway {
         std::unordered_map<uint64_t, std::unique_ptr<Client>> clients_;
         void clear_session_for_client(uint64_t client_id);
         std::vector<SessionState> sessions_;
-        LockFreeQueue<size_t, 1 << 20> slot_ids;
+        std::unique_ptr<LockFreeQueue<size_t, 1 << 20>> slot_ids;
         std::vector<FixMessage> fix_messages_{1 << 20};
-        LockFreeQueue<ClientFixMsg, 1 << 20> client_ingress_q_;
+        std::unique_ptr<LockFreeQueue<ClientFixMsg, 1 << 20>> client_ingress_q_;
 
     };
 }

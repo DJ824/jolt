@@ -288,14 +288,26 @@ namespace jolt::md {
     }
 
     void MarketDataGateway::poll_io() {
-        while (auto msg = inbound_.dequeue()) {
+        while (true) {
+            FixMessage* msg = inbound_.get_head_ptr();
+            if (!msg) {
+                break;
+            }
             on_fix_message({msg->data.data(), msg->len}, msg->session_id);
+            inbound_.read();
         }
     }
 
 
     void MarketDataGateway::queue_fix_message(const FixMessage& msg) {
-        outbound_.enqueue(msg);
+        FixMessage* slot = outbound_.get_tail_ptr();
+        if (!slot) {
+            return;
+        }
+        slot->len = msg.len;
+        slot->session_id = msg.session_id;
+        std::memcpy(slot->data.data(), msg.data.data(), msg.len);
+        outbound_.write();
     }
 
     bool MarketDataGateway::build_logon(FixMessage& out, SessionState& session, uint32_t heartbeat_int) {

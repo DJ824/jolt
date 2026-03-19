@@ -27,9 +27,9 @@ namespace jolt::gateway {
         int wake_fd_{-1};
         FixGateway* gateway_{nullptr};
         std::unique_ptr<std::atomic<FixSession*>[]> session_view_;
-        LockFreeQueue<uint64_t, 1 << 20> ready_sessions_;
+        std::unique_ptr<LockFreeQueue<uint64_t, 1 << 20>> ready_sessions_;
         std::vector<epoll_event> events_{};
-        LockFreeQueue<SocketEvent, 1 << 15> socket_events_;
+        std::unique_ptr<LockFreeQueue<SocketEvent, 1 << 15>> socket_events_;
     public:
         explicit EventLoop(int listen_fd);
         ~EventLoop();

@@ -60,7 +60,7 @@ namespace jolt::md {
 
     RecoverySever::RecoverySever(const std::string& host, uint16_t port, const std::string& blob_name,
                                  const std::string& meta_name, const std::string& request_name)
-        : snapshot_pool_(blob_name, BlobMode::Attach), snapshot_meta_q_(meta_name, SharedRingMode::Attach),
+        : snapshot_pool_(blob_name, PoolMode::Attach), snapshot_meta_q_(meta_name, SharedRingMode::Attach),
           snapshot_request_q_(request_name, SharedRingMode::Create),
           listen_host_(host),
           listen_port_(port) {
@@ -176,6 +176,7 @@ namespace jolt::md {
             DataSession::TxItem item{};
             item.bytes = meta.bytes;
             item.slot_idx = meta.slot_id;
+            item.slot_gen = meta.slot_gen;
             item.kind = DataSession::TxItem::Kind::Snapshot;
             item.offset = 0;
 
@@ -188,8 +189,14 @@ namespace jolt::md {
         while (!session.tx_buf_.empty()) {
             auto& frame = session.tx_buf_.front();
             if (frame.kind == DataSession::TxItem::Kind::Snapshot) {
-                snapshot_pool_.mark_reading(frame.slot_idx);
-                auto& slot = snapshot_pool_.reader_slot(frame.slot_idx);
+                BlobHandle handle{};
+                handle.idx = frame.slot_idx;
+                handle.gen = frame.slot_gen;
+                if (!snapshot_pool_.mark_reading(handle)) {
+                    session.tx_buf_.pop_front();
+                    continue;
+                }
+                auto& slot = snapshot_pool_.reader_slot(handle);
                 while (frame.offset < frame.bytes) {
                     int n = ::write(session.fd_, slot.payload.data() + frame.offset, frame.bytes - frame.offset);
                     if (n > 0) {
@@ -201,7 +208,7 @@ namespace jolt::md {
                     }
                     return false;
                 }
-                snapshot_pool_.release(frame.slot_idx);
+                (void)snapshot_pool_.release(handle);
                 session.tx_buf_.pop_front();
             }
             else {

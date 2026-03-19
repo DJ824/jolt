@@ -62,15 +62,18 @@ namespace jolt::md {
         recv_pending();
         std::string_view msg;
         while (extract_message(msg)) {
-            FixMessage fix_msg{};
-            if (msg.size() > fix_msg.data.size()) {
+            if (msg.size() > kFixMaxMsg) {
                 close();
                 return;
             }
-            std::memcpy(fix_msg.data.data(), msg.data(), msg.size());
-            fix_msg.len = msg.size();
-            fix_msg.session_id = session_id_;
-            gateway_->inbound_.enqueue(fix_msg);
+            auto* slot = gateway_->inbound_.get_tail_ptr();
+            if (!slot) {
+                break;
+            }
+            std::memcpy(slot->data.data(), msg.data(), msg.size());
+            slot->len = msg.size();
+            slot->session_id = session_id_;
+            gateway_->inbound_.write();
         }
     }
 

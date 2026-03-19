@@ -45,6 +45,7 @@ namespace jolt::md {
         uint32_t ask_ct;
         uint16_t symbol_id;
         uint16_t slot_id;
+        uint32_t slot_gen{0};
         bool accepted;
     };
 

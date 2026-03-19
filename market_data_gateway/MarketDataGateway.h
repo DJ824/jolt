@@ -8,7 +8,7 @@
 
 #include "../exchange/orderbook/ob_types.h"
 #include "../include/SharedMemoryRing.h"
-#include "../include/spsc.h"
+#include "../include/spsc_new.h"
 #include "ControlEventLoop.h"
 #include "MarketDataTypes.h"
 #include "UdpSever.h"

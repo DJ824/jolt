@@ -34,7 +34,7 @@ namespace jolt::exchange {
           exch_gtwy(exch_name, SharedRingMode::Create),
           exch_risk(risk_name, SharedRingMode::Create),
           risk_exch(exch_to_risk_name, SharedRingMode::Create),
-          snapshot_pool_(blob_name, BlobMode::Create),
+          snapshot_pool_(blob_name, PoolMode::Create),
           snapshot_meta(meta_name, SharedRingMode::Create),
           requests_(request_name, SharedRingMode::Attach), writer_("../data") {
         orderbooks_.reserve(4);
@@ -203,21 +203,21 @@ namespace jolt::exchange {
         ack.order_id = order.id;
         publish_exchange_msg(ack);
 
-        // ob::L3Data data{};
-        // data.qty = event.qty;
-        // data.event_type = event.event_type;
-        // data.seq = event.seq;
-        // data.side = event.side;
-        // data.price = event.price;
-        // data.event_type = event.event_type;
-        // data.symbol_id = symbol_id;
-        // publish_book_event(data);
-        //
-        // mkt_data_[symbol_idx].push_back(data);
-        // if (mkt_data_[symbol_idx].size() >= 1 << 10) {
-        //     writer_.write_batch(symbol_id, mkt_data_[symbol_idx].data(), mkt_data_[symbol_idx].size());
-        //     mkt_data_[symbol_idx].clear();
-        // }
+        ob::L3Data data{};
+        data.qty = event.qty;
+        data.event_type = event.event_type;
+        data.seq = event.seq;
+        data.side = event.side;
+        data.price = event.price;
+        data.event_type = event.event_type;
+        data.symbol_id = symbol_id;
+        publish_book_event(data);
+
+        mkt_data_[symbol_idx].push_back(data);
+        if (mkt_data_[symbol_idx].size() >= 1 << 10) {
+            writer_.write_batch(symbol_id, mkt_data_[symbol_idx].data(), mkt_data_[symbol_idx].size());
+            mkt_data_[symbol_idx].clear();
+        }
     }
 
     void Exchange::update_risk(const ExchangeToRiskMsg& msg) {
@@ -225,21 +225,50 @@ namespace jolt::exchange {
     }
 
     void Exchange::publish_exchange_msg(const ExchToGtwyMsg& msg) {
-        if (!exch_gtwy.enqueue(msg)) {
-            log_error("[exch] exchange->gateway enqueue failed type=" +
-                      std::string(exchange_msg_type_text(msg.type)) +
-                      " order_id=" + std::to_string(msg.order_id) +
-                      " client_id=" + std::to_string(msg.client_id));
+        // if (!exch_gtwy.enqueue(msg)) {
+        //     log_error("[exch] exchange->gateway enqueue failed type=" +
+        //               std::string(exchange_msg_type_text(msg.type)) +
+        //               " order_id=" + std::to_string(msg.order_id) +
+        //               " client_id=" + std::to_string(msg.client_id));
+        //     return;
+        // }
+
+        auto ptr = exch_gtwy.alloc();
+        if (!ptr) {
+            // log err
             return;
         }
+
+        ptr->client_id = msg.client_id;
+        ptr->order_id = msg.order_id;
+        ptr->fill_qty = msg.fill_qty;
+        ptr->type = msg.type;
+        ptr->reason = msg.reason;
+        ptr->filled = msg.filled;
+
+        exch_gtwy.push();
         log_info("[exch] exchange responded to gateway type=" +
                  std::string(exchange_msg_type_text(msg.type)) +
                  " order_id=" + std::to_string(msg.order_id) +
                  " client_id=" + std::to_string(msg.client_id));
+
+        // exch_gtwy.enqueue(msg);
     }
 
     void Exchange::publish_book_event(const ob::L3Data& data) {
-        (void)mkt_data_gtwy.enqueue(data);
+        auto ptr = mkt_data_gtwy.alloc();
+        if (!ptr) {
+            return;
+        }
+
+        ptr->event_type = data.event_type;
+        ptr->id = data.id;
+        ptr->price = data.price;
+        ptr->qty = data.qty;
+        ptr->seq = data.seq;
+        ptr->side = data.side;
+        ptr->symbol_id = data.symbol_id;
+        ptr->ts = data.ts;
     }
 
     void Exchange::handle_snapshot_request(uint64_t symbol_id, uint64_t request_seq, uint64_t request_id, uint64_t session_id)  {
@@ -269,18 +298,22 @@ namespace jolt::exchange {
         meta.request_id = request_id;
         meta.symbol_id = static_cast<uint16_t>(symbol_id);
         meta.session_id = session_id;
-        size_t idx = UINT16_MAX;
-        snapshot_pool_.try_acquire(idx);
-        if (idx == UINT16_MAX) {
+        BlobHandle handle{};
+        if (!snapshot_pool_.try_acquire(handle)) {
             meta.accepted = false;
             snapshot_meta.enqueue(meta);
             return;
         }
 
-        auto& slot = snapshot_pool_.writer_slot(idx);
+        auto& slot = snapshot_pool_.writer_slot(handle);
         std::memcpy(slot.payload.data(), snapshot.orders.data(), meta.bytes);
-        snapshot_pool_.publish_ready(idx);
-        meta.slot_id = idx;
+        if (!snapshot_pool_.publish_ready(handle)) {
+            meta.accepted = false;
+            snapshot_meta.enqueue(meta);
+            return;
+        }
+        meta.slot_id = static_cast<uint16_t>(handle.idx);
+        meta.slot_gen = handle.gen;
         meta.symbol_id = static_cast<uint16_t>(symbol_id);
         snapshot_meta.enqueue(meta);
     }

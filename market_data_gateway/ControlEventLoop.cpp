@@ -64,13 +64,19 @@ namespace jolt::md {
 
     void ControlEventLoop::poll_once(int timeout_ms) {
         int drained = 0;
-        while (auto msg = gateway_->outbound_.dequeue()) {
+        while (true) {
+            FixMessage* msg = gateway_->outbound_.get_head_ptr();
+            if (!msg) {
+                break;
+            }
             auto* session = lookup(msg->session_id);
             if (!session) {
+                gateway_->outbound_.read();
                 continue;
             }
             session->queue_message({msg->data.data(), msg->len});
             update_interest(session->fd_, session->session_id_, true);
+            gateway_->outbound_.read();
 
             ++drained;
             if (drained > 1024) {
